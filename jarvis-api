@@ -1,0 +1,59 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import List, Literal
+import os
+
+# Importa i tuoi file originali - li lasciamo intatti
+from provider_omnipotent import OmnipotentProvider
+
+app = FastAPI(title="JARVIS Omnipotent")
+provider = OmnipotentProvider()
+
+class Msg(BaseModel):
+    role: Literal["user","assistant","system"]
+    content: str
+
+class ChatReq(BaseModel):
+    messages: List[Msg]
+
+@app.get("/health")
+async def health():
+    return {"status":"ok", "provider":"omnipotent"}
+
+@app.post("/v1/chat")
+async def chat(req: ChatReq):
+    # converto per compatibilità con i tuoi schemas.py
+    from types import SimpleNamespace
+    internal = [SimpleNamespace(role=m.role, content=m.content) for m in req.messages]
+    text = await provider.complete(internal)
+    return {"message": {"role":"assistant", "content": text}}
+import os
+from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
+
+class OmnipotentProvider:
+    def __init__(self):
+        self.oai = AsyncOpenAI(api_key=os.getenv("JARVIS_OPENAI_KEY"))
+        self.claude = AsyncAnthropic(api_key=os.getenv("JARVIS_CLAUDE_KEY")) if os.getenv("JARVIS_CLAUDE_KEY") else None
+        self.gemini_key = os.getenv("JARVIS_GEMINI_KEY")
+
+    async def complete(self, messages):
+        msgs = [{"role": m.role, "content": m.content} for m in messages]
+        is_code = "```" in msgs[-1]["content"] or "code" in msgs[-1]["content"].lower()
+        try:
+            if is_code and self.claude:
+                r = await self.claude.messages.create(model="claude-3-5-sonnet-20241022", max_tokens=4096, messages=msgs)
+                return r.content[0].text
+        except Exception as e:
+            print(f"Claude fallback: {e}")
+        r = await self.oai.chat.completions.create(model="gpt-4o-mini", messages=msgs)
+        return r.choices[0].message.content
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+pydantic>=2.9,<3
+python-dotenv>=1.0,<2
+openai>=1.50
+anthropic>=0.40
+google-generativeai>=0.8
+httpx>=0.27,<1
+web: uvicorn main:app --host 0.0.0.0 --port $PORT
