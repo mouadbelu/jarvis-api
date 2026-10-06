@@ -6,9 +6,11 @@ from fastapi.responses import JSONResponse
 try:
     from provider_omnipotent import omnipotent_ask
 except Exception as e:
+    import traceback
+    traceback.print_exc()
     print("Provider import error:", e)
     async def omnipotent_ask(prompt, system=None, **kwargs):
-        return "Provider non caricato."
+        return f"Provider non caricato: {e}"
 
 app = FastAPI()
 
@@ -22,19 +24,18 @@ def clean_reply(text: str) -> str:
         for marker in ["Buongiorno, Signore", "Buongiorno", "Salve, Signore", "Ciao! Sono JARVIS", "Ciao, sono JARVIS"]:
             if marker in t:
                 idx = t.rfind(marker)
-                return t[idx:].strip()
+                chunk = t[idx:]
+                first_line = chunk.split("\n")[0].strip()
+                if first_line:
+                    return first_line
+                return chunk.strip()
     if t.startswith("Sei JARVIS"):
         parts = t.split("\n\n", 1)
         if len(parts) == 2:
             t = parts[1].strip()
-    if t.startswith("*"):
-        lines = [l for l in t.split("\n") if "Buongiorno" in l or "Salve" in l or "Come posso" in l]
-        if lines:
-            return lines[0].strip()
-    if len(t) > 500:
-        for marker in ["Buongiorno", "Salve", "Certo", "Sì,", "Certamente"]:
-            if marker in t:
-                return t[t.rfind(marker):].strip()
+    lines = [l.strip() for l in t.split("\n") if l.strip()]
+    if lines:
+        return lines[0].strip()
     return t.strip()
 
 def extract_message(data):
