@@ -3,16 +3,6 @@ import httpx
 
 SYSTEM_PROMPT = "Sei JARVIS, un assistente AI intelligente e diretto."
 
-# Tutti i modelli Gemini validi, provati in ordine. Se uno non esiste, salta al prossimo.
-GEMINI_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "gemini-2.0-flash-001",
-    "gemini-2.0-flash-lite",
-]
-
 async def _ask_openai(prompt: str, key: str):
     if not key:
         return None
@@ -55,12 +45,35 @@ async def _ask_claude(prompt: str, key: str):
         print("Claude exception:", e)
     return None
 
+async def _list_gemini_models(client, key):
+    # Chiede a Google quali modelli puoi usare con QUESTA chiave
+    try:
+        r = await client.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={key}")
+        if r.status_code == 200:
+            models = []
+            for m in r.json().get("models", []):
+                if "generateContent" in m.get("supportedGenerationMethods", []):
+                    # m["name"] è "models/gemini-2.5-flash"
+                    models.append(m["name"].replace("models/", ""))
+            print("Gemini models disponibili:", models)
+            return models
+    except Exception as e:
+        print("List models exception:", e)
+    return []
+
 async def _ask_gemini(prompt: str, key: str):
-    if not key or len(key) < 10:
+    if not key or not key.strip():
+        print("Gemini key vuota")
         return None
-    # Prova ogni modello finché uno funziona
+    key = key.strip()
     async with httpx.AsyncClient(timeout=60) as client:
-        for model in GEMINI_MODELS:
+        # 1. Prima prova a scoprire i modelli
+        models = await _list_gemini_models(client, key)
+        # 2. Se la scoperta fallisce, usa lista di fallback
+        if not models:
+            models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite", "gemini-1.0-pro"]
+
+        for model in models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
                 r = await client.post(
@@ -77,8 +90,8 @@ async def _ask_gemini(prompt: str, key: str):
                             print(f"Gemini OK con {model}")
                             return parts[0]["text"]
                 else:
-                    print(f"Gemini {model} error: {r.status_code}")
-                    continue # prova modello successivo
+                    print(f"Gemini {model} error: {r.status_code} - {r.text[:200]}")
+                    continue
             except Exception as e:
                 print(f"Gemini {model} exception:", e)
                 continue
@@ -89,12 +102,10 @@ async def omnipotent_ask(prompt: str, system: str = None, **kwargs) -> str:
     if system:
         SYSTEM_PROMPT = system
 
-    # Rileggi le chiavi ogni volta, così non serve riavviare per nulla
     openai_key = os.getenv("JARVIS_OPENAI_KEY")
     claude_key = os.getenv("JARVIS_CLAUDE_KEY")
     gemini_key = os.getenv("JARVIS_GEMINI_KEY")
 
-    # Prova i provider in ordine
     for key, fn in [(openai_key, _ask_openai), (claude_key, _ask_claude), (gemini_key, _ask_gemini)]:
         try:
             result = await fn(prompt, key)
