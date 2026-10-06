@@ -53,10 +53,12 @@ async def _ask_gemini(prompt: str):
         return None
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}",
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_KEY}",
+            headers={"Content-Type": "application/json"},
             json={"contents": [{"parts": [{"text": f"{SYSTEM_PROMPT}\n\nUtente: {prompt}"}]}]}
         )
         if r.status_code!= 200:
+            print(f"Gemini error {r.status_code}: {r.text}")
             return None
         return r.json()["candidates"][0]["content"]["parts"][0]["text"]
 
