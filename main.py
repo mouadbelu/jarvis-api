@@ -27,7 +27,7 @@ def clean_reply(text: str) -> str:
                 chunk = t[idx:]
                 first_line = chunk.split("\n")[0].strip()
                 if first_line:
-                    return first_line
+                    return first_line.strip(' \\"\t').rstrip('\\').strip()
                 return chunk.strip()
     if t.startswith("Sei JARVIS"):
         parts = t.split("\n\n", 1)
@@ -35,8 +35,8 @@ def clean_reply(text: str) -> str:
             t = parts[1].strip()
     lines = [l.strip() for l in t.split("\n") if l.strip()]
     if lines:
-        return lines[0].strip()
-    return t.strip()
+        return lines[0].strip(' \\"\t').rstrip('\\').strip()
+    return t.strip(' \\"\t')
 
 def extract_message(data):
     if not isinstance(data, dict):
