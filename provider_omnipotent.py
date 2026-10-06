@@ -59,7 +59,6 @@ async def _ask_claude(prompt: str):
         return None
 
 async def _ask_gemini(prompt: str):
-    # Accetta qualsiasi formato di chiave, non solo AIza
     if not GEMINI_KEY or len(GEMINI_KEY) < 10:
         return None
     try:
@@ -83,9 +82,11 @@ async def _ask_gemini(prompt: str):
         print("Gemini exception:", e)
         return None
 
-async def omnipotent_ask(prompt: str) -> str:
-    global OPENAI_KEY, CLAUDE_KEY, GEMINI_KEY
-    # Rileggi le variabili a runtime per sicurezza
+async def omnipotent_ask(prompt: str, system: str = None, **kwargs) -> str:
+    global OPENAI_KEY, CLAUDE_KEY, GEMINI_KEY, SYSTEM_PROMPT
+    if system:
+        SYSTEM_PROMPT = system
+
     OPENAI_KEY = os.getenv("JARVIS_OPENAI_KEY")
     CLAUDE_KEY = os.getenv("JARVIS_CLAUDE_KEY")
     GEMINI_KEY = os.getenv("JARVIS_GEMINI_KEY")
