@@ -11,7 +11,6 @@ async def _list_gemini_models(client, key):
             for m in r.json().get("models", []):
                 if "generateContent" in m.get("supportedGenerationMethods", []):
                     models.append(m["name"].replace("models/", ""))
-            print("Gemini models disponibili:", models)
             return models
     except Exception as e:
         print("List models exception:", e)
@@ -39,9 +38,7 @@ async def _ask_gemini(prompt: str, key: str):
                 if r.status_code == 200:
                     parts = r.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
                     if parts and parts[0].get("text"):
-                        print(f"Gemini OK con {model}")
                         return parts[0]["text"]
-                print(f"Gemini {model} error: {r.status_code}")
             except Exception as e:
                 print(f"Gemini {model} exception:", e)
                 continue
