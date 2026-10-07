@@ -17,6 +17,7 @@ async def ask_gemini(prompt, key):
                 }
             )
             if r.status_code!= 200:
+                print(f"gemini http {r.status_code}: {r.text[:300]}")
                 return None
             parts = r.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
             return parts[0]["text"] if parts else None
@@ -54,7 +55,7 @@ async def ask_claude(prompt, key):
         print(f"claude error: {e}")
         return None
 
-async def ask_omnipotent(prompt, sys=None):
+async def omnipotent_ask(prompt, sys=None):
     gemini_key = os.getenv("JARVIS_GEMINI_KEY", "")
     openai_key = os.getenv("JARVIS_OPENAI_KEY", "")
     claude_key = os.getenv("JARVIS_CLAUDE_KEY", "")
@@ -68,3 +69,6 @@ async def ask_omnipotent(prompt, sys=None):
     if result:
         return result
     return "Errore provider disponibile."
+
+# alias per compatibilità
+ask_omnipotent = omnipotent_ask
