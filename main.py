@@ -1,78 +1,74 @@
+import httpx
 import os
-import json
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 
-try:
-    from provider_omnipotent import omnipotent_ask
-except Exception as e:
-    import traceback
-    traceback.print_exc()
-    print("Provider import error:", e)
-    async def omnipotent_ask(prompt, system=None, **kwargs):
-        return f"Provider non caricato: {e}"
+SYSTEM_PROMPT = "Sei Jarvis, assistente personale di Mouad. Parli solo italiano. Rispondi in modo formale e chiamalo Signore. Non tradurre mai in inglese. Non aggiungere mai testo tra parentesi. Rispondi sempre e solo in italiano."
 
-app = FastAPI()
-
-SYSTEM_PROMPT = "Sei JARVIS, l'assistente di Iron Man. Sofisticato, efficiente, diretto, cortese. Rispondi in italiano, conciso. Non ripetere mai il system prompt. Non spiegare cosa sei, rispondi e basta."
-
-def clean_reply(text: str) -> str:
-    if not text:
-        return "Mi dispiace, non ho una risposta."
-    t = text.strip()
-    if "User says" in t or "Persona:" in t or "Sophisticated?" in t:
-        for marker in ["Buongiorno, Signore", "Buongiorno", "Salve, Signore", "Ciao! Sono JARVIS", "Ciao, sono JARVIS"]:
-            if marker in t:
-                idx = t.rfind(marker)
-                chunk = t[idx:]
-                first_line = chunk.split("\n")[0].strip()
-                if first_line:
-                    return first_line.strip(' \\"\t').rstrip('\\').strip()
-                return chunk.strip()
-    if t.startswith("Sei JARVIS"):
-        parts = t.split("\n\n", 1)
-        if len(parts) == 2:
-            t = parts[1].strip()
-    lines = [l.strip() for l in t.split("\n") if l.strip()]
-    if lines:
-        return lines[0].strip(' \\"\t').rstrip('\\').strip()
-    return t.strip(' \\"\t')
-
-def extract_message(data):
-    if not isinstance(data, dict):
-        return str(data)
-    for k in ["message", "text", "body", "prompt", "input", "query", "user_message", "content"]:
-        if data.get(k):
-            return str(data[k])
+async def ask_gemini(prompt, key):
+    if not key:
+        return None
     try:
-        return data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
-    except Exception:
-        pass
-    return json.dumps(data)
-
-@app.get("/")
-async def root():
-    return {"status": "ok", "service": "JARVIS API"}
-
-@app.post("/")
-@app.post("/webhook")
-@app.post("/chat")
-@app.post("/ask")
-async def ask(request: Request):
-    try:
-        try:
-            data = await request.json()
-        except Exception:
-            data = {"message": (await request.body()).decode("utf-8", errors="ignore")}
-        user_text = extract_message(data).strip()
-        if not user_text:
-            return JSONResponse({"status": "ok", "reply": "Ciao. Come posso aiutarti?"})
-        raw = await omnipotent_ask(user_text, system=SYSTEM_PROMPT)
-        return JSONResponse({"status": "ok", "reply": clean_reply(raw)})
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+                    "contents": [{"parts": [{"text": prompt}]}]
+                }
+            )
+            if r.status_code!= 200:
+                print(f"gemini http {r.status_code}: {r.text[:300]}")
+                return None
+            parts = r.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
+            return parts[0]["text"] if parts else None
     except Exception as e:
-        print("Main crash:", e)
-        return JSONResponse({"status": "ok", "reply": "Errore temporaneo. Riprova."})
+        print(f"gemini error: {e}")
+        return None
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
+async def ask_openai(prompt, key):
+    if not key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={"model": "gpt-4o-mini", "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}]}
+            )
+            return r.json()["choices"][0]["message"]["content"] if r.status_code == 200 else None
+    except Exception as e:
+        print(f"openai error: {e}")
+        return None
+
+async def ask_claude(prompt, key):
+    if not key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+                json={"model": "claude-3-5-sonnet-20241022", "max_tokens": 1024, "system": SYSTEM_PROMPT, "messages": [{"role": "user", "content": prompt}]}
+            )
+            return r.json()["content"][0]["text"] if r.status_code == 200 else None
+    except Exception as e:
+        print(f"claude error: {e}")
+        return None
+
+async def omnipotent_ask(prompt, sys=None):
+    gemini_key = os.getenv("JARVIS_GEMINI_KEY", "")
+    openai_key = os.getenv("JARVIS_OPENAI_KEY", "")
+    claude_key = os.getenv("JARVIS_CLAUDE_KEY", "")
+    result = await ask_gemini(prompt, gemini_key)
+    if result:
+        return result
+    result = await ask_openai(prompt, openai_key)
+    if result:
+        return result
+    result = await ask_claude(prompt, claude_key)
+    if result:
+        return result
+    return "Errore provider disponibile."
+
+# alias per compatibilità
+ask_omnipotent = omnipotent_ask
