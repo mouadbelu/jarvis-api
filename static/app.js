@@ -91,10 +91,11 @@ $('chat-form').addEventListener('submit',async e => {
   const message=$('chat-input').value.trim(); if (!message) return;
   if (!token) { page('settings'); notify('Accedi prima di usare Jarvis.'); return; }
   $('chat-input').value=''; addBubble('user',message);
+  document.body.classList.add('thinking'); $('neural-status').textContent='Sto elaborando la tua richiesta…';
   const pending=addBubble('assistant','Sto elaborando…'); $('send').disabled=true;
   try { const r=await api('/api/chat',{method:'POST',body:JSON.stringify({text:message})}); pending.textContent=r.reply; if ($('voice-out').checked) speak(r.reply); }
   catch(err) { pending.textContent='Non sono riuscito a rispondere: '+err.message; }
-  finally { $('send').disabled=false; }
+  finally { $('send').disabled=false; document.body.classList.remove('thinking'); $('neural-status').textContent='In attesa del tuo messaggio'; }
 });
 $('mic').addEventListener('click',() => {
   if (!speechRecognition) { notify('Dettatura non supportata da questo browser. Puoi usare il microfono della tastiera iPhone.'); return; }
