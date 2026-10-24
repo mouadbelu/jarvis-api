@@ -1,74 +1,53 @@
-import httpx
+"""LLM providers with environment-only API keys (never expose to browser)."""
 import os
+import httpx
 
-SYSTEM_PROMPT = "Sei Jarvis, assistente personale di Mouad. Parli solo italiano. Rispondi in modo formale e chiamalo Signore. Non tradurre mai in inglese. Non aggiungere mai testo tra parentesi. Rispondi sempre e solo in italiano."
+SYSTEM_PROMPT = (
+    'Sei Jarvis, l’assistente personale di Mouad. Rispondi in italiano, con precisione, ' 
+    'senza inventare accesso a email o app. Non affermare di aver inviato messaggi ' 
+    'o compiuto azioni se non le hai realmente completate. Quando un’azione ha ' 
+    'conseguenze esterne, ricorda che richiede conferma esplicita.'
+)
 
-async def ask_gemini(prompt, key):
-    if not key:
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key}",
-                headers={"Content-Type": "application/json"},
-                json={
-                    "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-                    "contents": [{"parts": [{"text": prompt}]}]
-                }
-            )
-            if r.status_code!= 200:
-                print(f"gemini http {r.status_code}: {r.text[:300]}")
-                return None
-            parts = r.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
-            return parts[0]["text"] if parts else None
-    except Exception as e:
-        print(f"gemini error: {e}")
-        return None
 
-async def ask_openai(prompt, key):
-    if not key:
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                json={"model": "gpt-4o-mini", "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}]}
-            )
-            return r.json()["choices"][0]["message"]["content"] if r.status_code == 200 else None
-    except Exception as e:
-        print(f"openai error: {e}")
-        return None
+async def omnipotent_ask(prompt: str, sys: str | None = None) -> str | None:
+    system = (sys or SYSTEM_PROMPT)[:10000]
+    timeout = httpx.Timeout(35.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        if os.getenv('JARVIS_OPENAI_KEY'):
+            try:
+                response = await client.post('https://api.openai.com/v1/chat/completions',
+                    headers={'Authorization': 'Bearer ' + os.environ['JARVIS_OPENAI_KEY']},
+                    json={'model': os.getenv('JARVIS_OPENAI_MODEL', 'gpt-4o-mini'),
+                          'messages': [{'role':'system','content':system},{'role':'user','content':prompt}]})
+                response.raise_for_status()
+                answer = response.json()['choices'][0]['message']['content']
+                if answer:
+                    return answer
+            except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+                print('OpenAI request failed:', type(exc).__name__)
+        if os.getenv('JARVIS_GEMINI_KEY'):
+            try:
+                response = await client.post('https://generativelanguage.googleapis.com/v1beta/models/'
+                    + os.getenv('JARVIS_GEMINI_MODEL', 'gemini-2.5-flash') + ':generateContent',
+                    headers={'x-goog-api-key': os.environ['JARVIS_GEMINI_KEY']},
+                    json={'systemInstruction': {'parts':[{'text':system}]},
+                          'contents': [{'parts':[{'text':prompt}]}]})
+                response.raise_for_status()
+                return response.json()['candidates'][0]['content']['parts'][0]['text']
+            except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+                print('Gemini request failed:', type(exc).__name__)
+        if os.getenv('JARVIS_CLAUDE_KEY'):
+            try:
+                response = await client.post('https://api.anthropic.com/v1/messages',
+                    headers={'x-api-key': os.environ['JARVIS_CLAUDE_KEY'], 'anthropic-version':'2023-06-01'},
+                    json={'model': os.getenv('JARVIS_CLAUDE_MODEL', 'claude-sonnet-4-5'),
+                          'max_tokens': 1000, 'system': system,
+                          'messages':[{'role':'user','content':prompt}]})
+                response.raise_for_status()
+                return response.json()['content'][0]['text']
+            except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+                print('Claude request failed:', type(exc).__name__)
+    return None
 
-async def ask_claude(prompt, key):
-    if not key:
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={"x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"},
-                json={"model": "claude-3-5-sonnet-20241022", "max_tokens": 1024, "system": SYSTEM_PROMPT, "messages": [{"role": "user", "content": prompt}]}
-            )
-            return r.json()["content"][0]["text"] if r.status_code == 200 else None
-    except Exception as e:
-        print(f"claude error: {e}")
-        return None
-
-async def omnipotent_ask(prompt, sys=None):
-    gemini_key = os.getenv("JARVIS_GEMINI_KEY", "")
-    openai_key = os.getenv("JARVIS_OPENAI_KEY", "")
-    claude_key = os.getenv("JARVIS_CLAUDE_KEY", "")
-    result = await ask_gemini(prompt, gemini_key)
-    if result:
-        return result
-    result = await ask_openai(prompt, openai_key)
-    if result:
-        return result
-    result = await ask_claude(prompt, claude_key)
-    if result:
-        return result
-    return "Errore provider disponibile."
-
-# alias per compatibilità
 ask_omnipotent = omnipotent_ask

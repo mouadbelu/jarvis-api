@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#080e18">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Jarvis">
+  <meta name="description" content="Jarvis, assistente personale privato per iPhone">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/icon.png">
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+  <title>Jarvis | Assistente personale</title>
+</head>
+<body>
+  <div class="shell">
+    <header class="top"><div class="brandmark" aria-hidden="true">J</div><div class="brand"><b>JARVIS</b><span>PERSONAL INTELLIGENCE</span></div><div id="connection" class="dot" title="Connessione" aria-label="Stato connessione"></div></header>
+    <main>
+      <section class="view active" id="home" aria-label="Panoramica">
+        <p class="eyebrow" id="today">IL TUO ASSISTENTE</p>
+        <h1 id="greeting">Buongiorno<span class="accent">.</span></h1>
+        <p class="subtitle">Tutto quello che conta, in un solo posto.</p>
+        <div class="sphere" aria-hidden="true"><div class="sphere-in"><span>J</span></div><div class="sphere-halo"></div></div>
+        <div class="sphere-caption"><span class="pulse"></span><span id="mode">In attesa di configurazione</span></div>
+        <div class="actions"><button class="primary" id="open-chat">Parla con Jarvis <span aria-hidden="true">↗</span></button><button class="round" id="speak-brief" title="Leggi il riepilogo ad alta voce" aria-label="Leggi il riepilogo ad alta voce">◉</button></div>
+        <div class="section-title"><h2>Briefing personale</h2><button class="text-btn" id="refresh">Aggiorna ↻</button></div>
+        <div class="stats"><article><span class="statlabel">EMAIL DA LEGGERE</span><strong id="unread">—</strong><small id="mail-note">Collega Gmail per vedere i messaggi.</small></article><article><span class="statlabel">ORARIO LOCALE</span><strong id="clock">--:--</strong><small id="date-note">Europe/Berlin</small></article></div>
+        <div class="section-title"><h2>Da controllare</h2></div><div id="home-mail" class="stack"><p class="muted">Le email importanti compariranno qui quando collegherai Gmail.</p></div>
+      </section>
+      <section class="view" id="chat" aria-label="Chat Jarvis"><div class="section-head"><p class="eyebrow">CONVERSAZIONE PRIVATA</p><h1>Parla con Jarvis<span class="accent">.</span></h1><p class="subtitle">Scrivi oppure usa il microfono.</p></div><div id="messages" class="messages" role="log" aria-live="polite"><div class="bubble assistant">Sono Jarvis. Posso aiutarti a organizzare le idee, rispondere alle domande e preparare messaggi. Per inviare email serve sempre la tua conferma.</div></div><form id="chat-form" class="composer"><button type="button" id="mic" title="Dettatura" aria-label="Inizia dettatura">🎙</button><input id="chat-input" maxlength="4000" placeholder="Chiedimi qualcosa..." autocomplete="off" aria-label="Messaggio"><button type="submit" id="send" aria-label="Invia messaggio">➤</button></form><div class="chat-tools"><label><input type="checkbox" id="voice-out"> Leggi risposte ad alta voce</label><button class="text-btn" id="clear-chat">Cancella chat</button></div></section>
+      <section class="view" id="mail" aria-label="Gmail"><div class="section-head"><p class="eyebrow">POSTA E COMUNICAZIONI</p><h1>La tua posta<span class="accent">.</span></h1><p class="subtitle">Visualizza e prepara email. Nessun invio automatico.</p></div><div class="panel"><div class="inline"><div><h2>Gmail</h2><p id="gmail-state" class="muted">Non collegato</p></div><button class="secondary" id="gmail-connect">Collega</button></div><p class="notice">L'accesso a Gmail richiede la configurazione OAuth sul server e il tuo consenso Google.</p></div><div class="section-title"><h2>Non lette</h2><button class="text-btn" id="load-mail">Aggiorna ↻</button></div><div id="mail-list" class="stack"><p class="muted">Non ci sono ancora dati.</p></div><div class="section-title"><h2>Prepara un'email</h2></div><form id="draft-form" class="panel formstack"><label>Destinatario<input id="mail-to" type="email" required placeholder="nome@esempio.com"></label><label>Oggetto<input id="mail-subject" maxlength="200" placeholder="Oggetto"></label><label>Messaggio<textarea id="mail-body" rows="5" required placeholder="Scrivi il messaggio..."></textarea></label><button class="primary" type="submit">Prepara e controlla</button><p class="muted small">Dopo la preparazione vedrai un'anteprima e dovrai confermare di nuovo prima dell'invio.</p></form></section>
+      <section class="view" id="settings" aria-label="Impostazioni"><div class="section-head"><p class="eyebrow">CONTROLLO E PRIVACY</p><h1>Impostazioni<span class="accent">.</span></h1></div><div class="panel formstack"><h2>Accesso personale</h2><p class="muted">Inserisci il token segreto configurato su Railway. Si conserva soltanto in questa sessione del browser, non sul server del sito o in URL.</p><label>Token di accesso<input id="access" type="password" placeholder="JARVIS_ACCESS_TOKEN" autocomplete="off"></label><div class="inline"><button class="primary" id="save-access" type="button">Accedi</button><button class="secondary" id="logout" type="button">Esci</button></div><p id="auth-state" class="status" role="status"></p></div><div class="panel formstack"><h2>Memorie personali</h2><p class="muted">Salva soltanto le informazioni che decidi tu. Puoi eliminarle quando vuoi.</p><label>Nome della memoria<input id="memory-key" placeholder="Es. lavoro" maxlength="60"></label><label>Informazione<textarea id="memory-value" rows="3" maxlength="2000" placeholder="Es. Preferisco le risposte in italiano"></textarea></label><button class="secondary" id="save-memory" type="button">Salva memoria</button><div id="memory-list" class="stack"></div></div><div class="panel"><h2>Messaggistica</h2><p class="muted">WhatsApp e Instagram non sono collegati direttamente. Puoi aprire le app, ma Jarvis non può leggere o inviare messaggi personali tramite integrazioni non disponibili.</p><div class="inline wrap"><a class="secondary link-btn" href="https://wa.me/" target="_blank" rel="noopener noreferrer">Apri WhatsApp ↗</a><a class="secondary link-btn" href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer">Apri Instagram ↗</a></div></div><p class="foot">JARVIS v2 • Dati privati • Nessuna azione esterna senza autorizzazione</p></section>
+    </main>
+    <nav class="bottom" aria-label="Navigazione"><button data-page="home" class="active" aria-current="page"><span>⌂</span>Home</button><button data-page="chat"><span>◉</span>Chat</button><button data-page="mail"><span>✉</span>Posta</button><button data-page="settings"><span>⚙</span>Impostazioni</button></nav>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
