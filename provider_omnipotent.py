@@ -14,10 +14,11 @@ async def omnipotent_ask(prompt: str, sys: str | None = None) -> str | None:
     system = (sys or SYSTEM_PROMPT)[:10000]
     timeout = httpx.Timeout(35.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
-        if os.getenv('JARVIS_OPENAI_KEY'):
+        openai_key = os.getenv('JARVIS_OPENAI_KEY') or os.getenv('OPENAI_API_KEY')
+        if openai_key:
             try:
                 response = await client.post('https://api.openai.com/v1/chat/completions',
-                    headers={'Authorization': 'Bearer ' + os.environ['JARVIS_OPENAI_KEY']},
+                    headers={'Authorization': 'Bearer ' + openai_key},
                     json={'model': os.getenv('JARVIS_OPENAI_MODEL', 'gpt-4o-mini'),
                           'messages': [{'role':'system','content':system},{'role':'user','content':prompt}]})
                 response.raise_for_status()
