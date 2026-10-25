@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Depends, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,7 @@ from storage import Store
 from provider_omnipotent import omnipotent_ask, SYSTEM_PROMPT
 import gmail_api
 import growth
+import auth_firewall
 
 app = FastAPI(title='Jarvis Personal Assistant', docs_url=None, redoc_url=None)
 store = Store()
@@ -24,20 +25,69 @@ STATIC = Path(__file__).parent / 'static'
 app.mount('/static', StaticFiles(directory=STATIC), name='static')
 
 @app.middleware('http')
-async def prevent_private_caching(request: Request, call_next):
+async def browser_security(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith('/api/') or request.url.path == '/ask':
-        response.headers['Cache-Control'] = 'no-store'
+    return auth_firewall.harden_response(request, response)
+
+
+def secure(request: Request, _auth: str | None = Header(default=None, alias='Authorization')):
+    key = os.getenv('JARVIS_ACCESS_TOKEN','')
+    if not key or len(key) < 24:
+        raise HTTPException(503, 'Configura JARVIS_ACCESS_TOKEN su Railway.')
+    if _auth is not None:
+        # Preserve trusted integrations using bearer, but never fall back to cookies
+        # when an explicit (possibly stolen/invalid) bearer token is provided.
+        prefix = 'Bearer '
+        if not _auth.startswith(prefix) or not secrets.compare_digest(_auth[len(prefix):], key):
+            raise HTTPException(401, 'Accesso non autorizzato.')
+        return
+    if not auth_firewall.session_exists(store, request.cookies.get(auth_firewall.COOKIE_NAME)):
+        raise HTTPException(401, 'Sessione scaduta. Effettua nuovamente l’accesso.')
+    if request.method.upper() not in {'GET', 'HEAD', 'OPTIONS'}:
+        auth_firewall.enforce_origin(request)
+
+
+class LoginInput(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+
+
+@app.post('/api/auth/login')
+def browser_login(data: LoginInput, request: Request):
+    auth_firewall.enforce_origin(request)
+    raw = auth_firewall.login(store, request, data.token)
+    response = JSONResponse({'ok': True, 'expires_in': auth_firewall.SESSION_SECONDS})
+    response.set_cookie(
+        auth_firewall.COOKIE_NAME, raw, httponly=True, secure=True,
+        samesite='strict', path='/', max_age=auth_firewall.SESSION_SECONDS,
+    )
     return response
 
 
-def secure(_auth: str | None = Header(default=None, alias='Authorization')):
-    key = os.getenv('JARVIS_ACCESS_TOKEN','')
-    if not key or len(key) < 24:
-        raise HTTPException(503, 'Configura JARVIS_ACCESS_TOKEN (minimo 24 caratteri) su Railway.')
-    prefix = 'Bearer '
-    if not _auth or not _auth.startswith(prefix) or not secrets.compare_digest(_auth[len(prefix):],key):
-        raise HTTPException(401,'Accesso non autorizzato.')
+@app.get('/api/auth/status', dependencies=[Depends(secure)])
+def browser_session_status():
+    return {'authenticated': True}
+
+
+@app.post('/api/auth/logout', dependencies=[Depends(secure)])
+def browser_logout(request: Request):
+    auth_firewall.revoke(store, request.cookies.get(auth_firewall.COOKIE_NAME))
+    response = JSONResponse({'ok': True})
+    response.delete_cookie(
+        auth_firewall.COOKIE_NAME, path='/', secure=True, httponly=True,
+        samesite='strict',
+    )
+    return response
+
+
+@app.post('/api/auth/logout-all', dependencies=[Depends(secure)])
+def browser_logout_everywhere():
+    auth_firewall.revoke_all(store)
+    response = JSONResponse({'ok': True})
+    response.delete_cookie(
+        auth_firewall.COOKIE_NAME, path='/', secure=True, httponly=True,
+        samesite='strict',
+    )
+    return response
 
 
 class ChatInput(BaseModel):
