@@ -1,5 +1,6 @@
 """Jarvis v2: private, single-user mobile assistant API and progressive web app."""
 import os
+import asyncio
 import re
 import secrets
 from datetime import datetime
@@ -24,6 +25,17 @@ app = FastAPI(title='Jarvis Personal Assistant', docs_url=None, redoc_url=None)
 store = Store()
 STATIC = Path(__file__).parent / 'static'
 app.mount('/static', StaticFiles(directory=STATIC), name='static')
+
+@app.on_event('startup')
+async def verify_provider_configuration():
+    """One tiny background smoke test per deployment; logs provider status codes, never keys."""
+    async def run_probe():
+        try:
+            result = await omnipotent_ask('Rispondi soltanto OK.', sys='Rispondi solo OK.')
+            print('Jarvis AI startup diagnostic: ' + ('PASS' if result else 'FAIL'), flush=True)
+        except Exception as exc:
+            print('Jarvis AI startup diagnostic: ERROR ' + type(exc).__name__, flush=True)
+    asyncio.create_task(run_probe())
 
 @app.middleware('http')
 async def browser_security(request: Request, call_next):
