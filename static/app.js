@@ -25,6 +25,7 @@ function page(name) {
   if (name === 'mail') loadMail().catch(() => {});
   if (name === 'settings') { loadMemory().catch(() => {}); loadEmergencyStatus().catch(() => {}); }
   if (name === 'growth') loadGrowth().catch(e => notify(e.message));
+  document.dispatchEvent(new CustomEvent('jarvis:pagechange', {detail: {name}}));
 }
 async function api(path, options={}) {
   const method=(options.method||'GET').toUpperCase();
@@ -153,6 +154,7 @@ $('save-access').addEventListener('click',async () => {
   }
 });
 function clearPrivateScreen() {
+  document.dispatchEvent(new Event('jarvis:logout'));
   authenticated=false;
   $('connection').classList.remove('ok');
   status('Sessione chiusa su questo dispositivo.');
