@@ -18,6 +18,7 @@ from provider_omnipotent import omnipotent_ask, SYSTEM_PROMPT
 import gmail_api
 import growth
 import auth_firewall
+import emergency
 
 app = FastAPI(title='Jarvis Personal Assistant', docs_url=None, redoc_url=None)
 store = Store()
@@ -31,6 +32,7 @@ async def browser_security(request: Request, call_next):
 
 
 def secure(request: Request, _auth: str | None = Header(default=None, alias='Authorization')):
+    emergency.assert_unlocked(store)
     key = os.getenv('JARVIS_ACCESS_TOKEN','')
     if not key or len(key) < 24:
         raise HTTPException(503, 'Configura JARVIS_ACCESS_TOKEN su Railway.')
@@ -47,6 +49,62 @@ def secure(request: Request, _auth: str | None = Header(default=None, alias='Aut
         auth_firewall.enforce_origin(request)
 
 
+
+class EmergencyEnrollInput(BaseModel):
+    owner_token: str = Field(min_length=24, max_length=512)
+    recovery_phrase: str = Field(min_length=20, max_length=256)
+
+
+class EmergencyActionInput(EmergencyEnrollInput):
+    confirmation: str = Field(min_length=1, max_length=40)
+
+
+@app.get('/api/emergency/status')
+def emergency_status():
+    return emergency.status(store)
+
+
+@app.post('/api/emergency/enroll')
+def emergency_enroll(request: Request, data: EmergencyEnrollInput):
+    auth_firewall.enforce_origin(request)
+    return emergency.enroll(store, data.owner_token, data.recovery_phrase)
+
+
+@app.post('/api/emergency/lock')
+def emergency_lock(request: Request, data: EmergencyActionInput):
+    auth_firewall.enforce_origin(request)
+    result = emergency.lock(store, data.owner_token, data.recovery_phrase, data.confirmation)
+    response = JSONResponse(result)
+    response.delete_cookie(auth_firewall.COOKIE_NAME, path='/', secure=True, httponly=True, samesite='strict')
+    return response
+
+
+@app.post('/api/emergency/unlock')
+def emergency_unlock(request: Request, data: EmergencyEnrollInput):
+    auth_firewall.enforce_origin(request)
+    result = emergency.unlock(store, data.owner_token, data.recovery_phrase)
+    response = JSONResponse(result)
+    response.delete_cookie(auth_firewall.COOKIE_NAME, path='/', secure=True, httponly=True, samesite='strict')
+    return response
+
+
+@app.post('/api/emergency/wipe')
+def emergency_wipe(request: Request, data: EmergencyActionInput):
+    auth_firewall.enforce_origin(request)
+    growth.initialize(store)
+    auth_firewall.initialize(store)
+    result = emergency.wipe(store, data.owner_token, data.recovery_phrase, data.confirmation)
+    response = JSONResponse(result)
+    response.delete_cookie(auth_firewall.COOKIE_NAME, path='/', secure=True, httponly=True, samesite='strict')
+    return response
+
+
+@app.get('/recovery')
+def recovery_manual():
+    # This read-only guide remains accessible even while the private API is locked.
+    return FileResponse(STATIC / 'recovery.html')
+
+
 class LoginInput(BaseModel):
     token: str = Field(min_length=1, max_length=512)
 
@@ -54,6 +112,7 @@ class LoginInput(BaseModel):
 @app.post('/api/auth/login')
 def browser_login(data: LoginInput, request: Request):
     auth_firewall.enforce_origin(request)
+    emergency.assert_unlocked(store)
     raw = auth_firewall.login(store, request, data.token)
     response = JSONResponse({'ok': True, 'expires_in': auth_firewall.SESSION_SECONDS})
     response.set_cookie(
@@ -271,6 +330,7 @@ def gmail_connect():
 
 @app.get('/api/gmail/callback')
 async def gmail_callback(request: Request, code: str='', state: str=''):
+    emergency.assert_unlocked(store)
     expected=request.cookies.get('jarvis_oauth_state','')
     if not code or not state or not expected or not secrets.compare_digest(state,expected):
         raise HTTPException(403,'Stato OAuth non valido. Riavvia il collegamento.')
