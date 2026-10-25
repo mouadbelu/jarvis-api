@@ -43,19 +43,34 @@ async def omnipotent_ask(prompt: str, sys: str | None = None) -> str | None:
             except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
                 print('OpenAI request failed:', type(exc).__name__, flush=True)
         if os.getenv('JARVIS_GEMINI_KEY'):
-            try:
-                response = await client.post('https://generativelanguage.googleapis.com/v1beta/models/'
-                    + os.getenv('JARVIS_GEMINI_MODEL', 'gemini-2.5-flash') + ':generateContent',
-                    headers={'x-goog-api-key': os.environ['JARVIS_GEMINI_KEY']},
-                    json={'systemInstruction': {'parts':[{'text':system}]},
-                          'contents': [{'parts':[{'text':prompt}]}]})
-                response.raise_for_status()
-                return response.json()['candidates'][0]['content']['parts'][0]['text']
-            except httpx.HTTPStatusError as exc:
-                code = _safe_error_code(exc.response)
-                print(f'Gemini request failed: HTTP {exc.response.status_code}, code={code}', flush=True)
-            except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-                print('Gemini request failed:', type(exc).__name__, flush=True)
+            # 2.5 returns 404 for many newly created projects even if models.list shows it.
+            # Prefer current Flash models; on 404 try another modern Flash SKU.
+            configured_model = os.getenv('JARVIS_GEMINI_MODEL', '').strip()
+            candidate_models = [configured_model] if configured_model else [
+                'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.6-flash',
+            ]
+            for model in candidate_models:
+                try:
+                    response = await client.post(
+                        'https://generativelanguage.googleapis.com/v1beta/models/'
+                        + model + ':generateContent',
+                        headers={'x-goog-api-key': os.environ['JARVIS_GEMINI_KEY']},
+                        json={'systemInstruction': {'parts': [{'text': system}]},
+                              'contents': [{'parts': [{'text': prompt}]}]},
+                    )
+                    response.raise_for_status()
+                    answer = response.json()['candidates'][0]['content']['parts'][0]['text']
+                    if answer:
+                        print(f'Gemini provider healthy: model={model}', flush=True)
+                        return answer
+                except httpx.HTTPStatusError as exc:
+                    code = _safe_error_code(exc.response)
+                    print(f'Gemini request failed: model={model}, HTTP {exc.response.status_code}, code={code}', flush=True)
+                    if exc.response.status_code != 404:
+                        break
+                except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+                    print(f'Gemini request failed: model={model}, {type(exc).__name__}', flush=True)
+                    break
         if os.getenv('JARVIS_CLAUDE_KEY'):
             try:
                 response = await client.post('https://api.anthropic.com/v1/messages',
