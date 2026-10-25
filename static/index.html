@@ -30,6 +30,33 @@
         <div class="section-title"><h2>Da controllare</h2></div><div id="home-mail" class="stack"><p class="muted">Le email importanti compariranno qui quando collegherai Gmail.</p></div>
       </section>
       <section class="view" id="chat" aria-label="Chat Jarvis"><div class="section-head"><p class="eyebrow">CONVERSAZIONE PRIVATA</p><h1>Parla con Jarvis<span class="accent">.</span></h1><p class="subtitle">Scrivi oppure usa il microfono.</p></div><div class="neural-chat"><canvas class="neural-canvas" aria-hidden="true"></canvas><span id="neural-status" role="status">In attesa del tuo messaggio</span></div><div id="messages" class="messages" role="log" aria-live="polite"><div class="bubble assistant">Sono Jarvis. Posso aiutarti a organizzare le idee, rispondere alle domande e preparare messaggi. Per inviare email serve sempre la tua conferma.</div></div><form id="chat-form" class="composer"><button type="button" id="mic" title="Dettatura" aria-label="Inizia dettatura">🎙</button><input id="chat-input" maxlength="4000" placeholder="Chiedimi qualcosa..." autocomplete="off" aria-label="Messaggio"><button type="submit" id="send" aria-label="Invia messaggio">➤</button></form><div class="chat-tools"><label><input type="checkbox" id="voice-out"> Leggi risposte ad alta voce</label><button class="text-btn" id="clear-chat">Cancella chat</button></div></section>
+      <section class="view" id="voice" aria-label="Conversazione solo vocale">
+        <div class="section-head voice-heading">
+          <p class="eyebrow">J.A.R.V.I.S. / VOICE INTERFACE</p>
+          <h1>Parla con <span class="accent">Jarvis.</span></h1>
+          <p class="subtitle">Una conversazione a voce, senza digitare messaggi.</p>
+        </div>
+        <div class="voice-console" data-voice-phase="idle">
+          <div class="voice-orbit" aria-hidden="true"><canvas class="neural-canvas"></canvas><span class="voice-orbit-ring"></span></div>
+          <div class="voice-status" id="voice-state" role="status" aria-live="polite">Pronto ad ascoltarti</div>
+          <p id="voice-hint" class="voice-hint">Tocca il microfono e parla a Jarvis.</p>
+          <button type="button" id="voice-mic" class="voice-mic" aria-label="Tocca per parlare"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8.5 21h7"/></svg></button>
+          <div id="voice-action" class="voice-action">Tocca per parlare</div>
+          <div class="voice-actions">
+            <button type="button" class="secondary" id="voice-stop" disabled>Ferma tutto</button>
+            <button type="button" class="secondary" id="voice-repeat" disabled>Riascolta risposta</button>
+          </div>
+        </div>
+        <div class="voice-captions" aria-live="polite">
+          <p class="eyebrow">ULTIMA DOMANDA</p>
+          <p id="voice-transcript" class="voice-transcript">Qui vedrai le parole riconosciute.</p>
+          <p class="eyebrow">RISPOSTA DI JARVIS</p>
+          <p id="voice-answer" class="voice-answer">Le risposte saranno lette ad alta voce quando disponibili.</p>
+        </div>
+        <div class="section-title"><h2>Conversazione vocale</h2></div>
+        <div id="voice-log" class="voice-log" aria-label="Storico conversazione vocale"></div>
+        <p class="voice-privacy">Il microfono si attiva solo quando lo premi. La dettatura può dipendere dai servizi vocali del browser e da una connessione Internet. Jarvis non ascolta in background.</p>
+      </section>
       <section class="view" id="mail" aria-label="Gmail"><div class="section-head"><p class="eyebrow">POSTA E COMUNICAZIONI</p><h1>La tua posta<span class="accent">.</span></h1><p class="subtitle">Visualizza e prepara email. Nessun invio automatico.</p></div><div class="panel"><div class="inline"><div><h2>Gmail</h2><p id="gmail-state" class="muted">Non collegato</p></div><button class="secondary" id="gmail-connect">Collega</button></div><p class="notice">L'accesso a Gmail richiede la configurazione OAuth sul server e il tuo consenso Google.</p></div><div class="section-title"><h2>Non lette</h2><button class="text-btn" id="load-mail">Aggiorna ↻</button></div><div id="mail-list" class="stack"><p class="muted">Non ci sono ancora dati.</p></div><div class="section-title"><h2>Prepara un'email</h2></div><form id="draft-form" class="panel formstack"><label>Destinatario<input id="mail-to" type="email" required placeholder="nome@esempio.com"></label><label>Oggetto<input id="mail-subject" maxlength="200" placeholder="Oggetto"></label><label>Messaggio<textarea id="mail-body" rows="5" required placeholder="Scrivi il messaggio..."></textarea></label><button class="primary" type="submit">Prepara e controlla</button><p class="muted small">Dopo la preparazione vedrai un'anteprima e dovrai confermare di nuovo prima dell'invio.</p></form></section>
       <section class="view" id="growth" aria-label="Growth Lab imprenditoriale">
         <div class="section-head"><p class="eyebrow">J.A.R.V.I.S. / GROWTH ENGINE</p><h1>Costruisci il tuo <span class="accent">futuro.</span></h1><p class="subtitle">Non soltanto idee. Azioni misurabili, clienti reali, opportunità da verificare.</p></div>
@@ -65,10 +92,11 @@
 <p class="muted small">La frase di recupero non è salvata in chiaro e non può essere recuperata: conservala in un password manager. La cancellazione richiede una seconda conferma. Per revocare credenziali provider, usa anche Railway, Google e OpenAI.</p>
 </div><div class="panel"><h2>Messaggistica</h2><p class="muted">WhatsApp e Instagram non sono collegati direttamente. Puoi aprire le app, ma Jarvis non può leggere o inviare messaggi personali tramite integrazioni non disponibili.</p><div class="inline wrap"><a class="secondary link-btn" href="https://wa.me/" target="_blank" rel="noopener noreferrer">Apri WhatsApp ↗</a><a class="secondary link-btn" href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer">Apri Instagram ↗</a></div></div><p class="foot">JARVIS v2 • Dati privati • Nessuna azione esterna senza autorizzazione</p></section>
     </main>
-    <nav class="bottom" aria-label="Navigazione"><button data-page="home" class="active" aria-current="page"><span>⌂</span>Home</button><button data-page="chat"><span>◉</span>Chat</button><button data-page="mail"><span>✉</span>Posta</button><button data-page="growth"><span>◎</span>Crescita</button><button data-page="settings"><span>⚙</span>Impostazioni</button></nav>
+    <nav class="bottom" aria-label="Navigazione"><button data-page="home" class="active" aria-current="page"><span>⌂</span>Home</button><button data-page="chat"><span>◉</span>Chat</button><button data-page="voice"><span>🎙</span>Voce</button><button data-page="mail"><span>✉</span>Posta</button><button data-page="growth"><span>◎</span>Crescita</button><button data-page="settings"><span>⚙</span>Impostazioni</button></nav>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>
   <script src="/static/app.js" defer></script>
+  <script src="/static/voice.js" defer></script>
   <script src="/static/neural.js" defer></script>
 </body>
 </html>
