@@ -22,6 +22,7 @@ function page(name) {
   if (name === 'chat') $('messages').scrollTop = $('messages').scrollHeight;
   if (name === 'mail') loadMail().catch(() => {});
   if (name === 'settings') loadMemory().catch(() => {});
+  if (name === 'growth') loadGrowth().catch(e => notify(e.message));
 }
 async function api(path, options={}) {
   const headers = Object.assign({'Accept':'application/json'}, options.body ? {'Content-Type':'application/json'} : {}, token ? {'Authorization':'Bearer ' + token} : {});
@@ -186,6 +187,136 @@ $('draft-form').addEventListener('submit',async e => {
     if (sent.sent) { notify('Email inviata con Gmail.'); $('draft-form').reset(); }
   } catch(err) { notify(err.message); }
 });
+
+/* Personal Growth Lab. No external action happens without a user click. */
+let growthLoaded=false;
+function growthEl(tag, className, content) {
+  const e=document.createElement(tag);
+  if(className)e.className=className;
+  if(content!==undefined)e.textContent=content;
+  return e;
+}
+function growthField(id, value) {
+  const el=$(id);
+  if(document.activeElement!==el)el.value=value===undefined || value===null ? '' : String(value);
+}
+function growthIdeas(data) {
+  const list=$('growth-ideas');list.replaceChildren();
+  if(!data.length){
+    list.append(growthEl('p','muted','Genera la prima idea. Ti darò cliente, offerta, verifica commerciale e rischi.'));
+    return;
+  }
+  const fields=[
+    ['customer','Cliente ideale'],['offer','Proposta da vendere'],
+    ['revenue_test','Come testare il ricavo'],['first_test','Primi 7 giorni'],
+    ['costs_and_risks','Costi e rischi']
+  ];
+  for(const idea of data){
+    const card=growthEl('article','growth-idea');
+    const label=idea.source==='ai_da_validare'?'PROPOSTA AI • DA VERIFICARE':'MODELLO • DA VERIFICARE';
+    card.append(growthEl('small','',label),growthEl('h3','',idea.title||'Idea imprenditoriale'));
+    const dl=growthEl('dl');
+    for(const [key,title] of fields){
+      dl.append(growthEl('dt','',title),growthEl('dd','',idea[key]||'Da approfondire'));
+    }
+    card.append(dl);list.append(card);
+  }
+}
+function growthRender(data) {
+  growthLoaded=true;
+  $('growth-day').textContent='Missioni del '+data.date;
+  $('growth-finished').textContent=data.done_today+'/'+data.tasks.length;
+  $('growth-streak').textContent=data.streak_days;
+  $('growth-all').textContent=data.completed_total;
+  $('growth-progress-fill').style.width=(data.tasks.length?100*data.done_today/data.tasks.length:0)+'%';
+  const list=$('growth-missions');list.replaceChildren();
+  for(const task of data.tasks){
+    const card=growthEl('article','growth-task'+(task.done?' done':''));
+    const checkbox=growthEl('input');checkbox.type='checkbox';checkbox.checked=!!task.done;
+    checkbox.setAttribute('aria-label','Completa missione '+task.category);
+    const label=growthEl('label');
+    label.append(growthEl('small','',task.category.toUpperCase()),document.createTextNode(task.title));
+    const id='growth-'+task.id.replace(/[^a-zA-Z0-9]/g,'-');
+    checkbox.id=id;label.htmlFor=id;
+    checkbox.onchange=async()=>{
+      checkbox.disabled=true;
+      try{
+        const updated=await api('/api/growth/tasks/'+encodeURIComponent(task.id),{
+          method:'PATCH',body:JSON.stringify({done:checkbox.checked})
+        });
+        growthRender(updated);
+      }catch(err){
+        checkbox.checked=!checkbox.checked;checkbox.disabled=false;notify(err.message);
+      }
+    };
+    card.append(checkbox,label);list.append(card);
+  }
+  if(!list.children.length)list.append(growthEl('p','muted','Missioni non disponibili.'));
+  growthIdeas(data.ideas||[]);
+  const radar=$('growth-radar');radar.replaceChildren();
+  for(const entry of (data.radar||[])){
+    const link=growthEl('a','growth-radar-item',entry.label+' ↗');
+    if(/^https:\/\//.test(entry.url)){
+      link.href=entry.url;link.target='_blank';link.rel='noopener noreferrer';
+      radar.append(link);
+    }
+  }
+  if(!document.activeElement || !document.activeElement.closest('#growth-profile-form')){
+    growthField('growth-focus',data.profile.focus);
+    growthField('growth-market',data.profile.market);
+    growthField('growth-minutes',data.profile.minutes_per_day);
+    growthField('growth-budget',data.profile.starting_budget_eur);
+    growthField('growth-goal',data.profile.goal_90_days);
+  }
+}
+async function loadGrowth() {
+  if(!token){notify('Accedi dalle Impostazioni per iniziare il Growth Lab.');return;}
+  growthRender(await api('/api/growth'));
+}
+$('growth-reload').onclick=()=>loadGrowth().catch(err=>notify(err.message));
+$('growth-profile-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!token){notify('Accedi prima dalle Impostazioni.');return;}
+  const data={
+    focus:$('growth-focus').value.trim(),
+    market:$('growth-market').value.trim(),
+    minutes_per_day:Number($('growth-minutes').value),
+    starting_budget_eur:Number($('growth-budget').value),
+    goal_90_days:$('growth-goal').value.trim()
+  };
+  try{
+    await api('/api/growth/profile',{method:'PUT',body:JSON.stringify(data)});
+    notify('Strategia personale salvata.');
+    await loadGrowth();
+  }catch(e){notify(e.message);}
+});
+$('growth-generate').onclick=async()=>{
+  if(!token){notify('Accedi prima dalle Impostazioni.');return;}
+  const btn=$('growth-generate');btn.disabled=true;btn.textContent='Sto valutando un modello di business...';
+  try{
+    const idea=await api('/api/growth/ideas',{
+      method:'POST',body:JSON.stringify({topic:$('growth-topic').value.trim()})
+    });
+    await loadGrowth();
+    notify(idea.source==='ai_da_validare'?'Nuova proposta generata: verifica il mercato.':'Idea modello aggiunta: verifica il mercato.');
+    $('growth-ideas').scrollIntoView({behavior:'smooth',block:'nearest'});
+  }catch(e){notify(e.message);}
+  finally{btn.disabled=false;btn.textContent='Genera una nuova idea da testare';}
+};
+$('growth-ask').onclick=async()=>{
+  if(!token){notify('Accedi prima dalle Impostazioni.');return;}
+  const question=$('growth-question').value.trim();
+  if(question.length<3){notify('Scrivi una domanda imprenditoriale concreta.');return;}
+  const button=$('growth-ask');button.disabled=true;
+  const out=$('growth-answer');out.textContent='Sto strutturando un esperimento pratico...';
+  try{
+    const result=await api('/api/growth/mentor',{method:'POST',body:JSON.stringify({question})});
+    out.textContent=result.answer;
+    if(result.mode!=='ai')notify('Guida di base: provider AI non disponibile per questa richiesta.');
+  }catch(e){out.textContent='Analisi non riuscita: '+e.message;}
+  finally{button.disabled=false;}
+};
+
 document.querySelectorAll('.bottom button').forEach(b => b.onclick=()=>page(b.dataset.page));
 $('today').textContent=new Intl.DateTimeFormat('it-IT',{weekday:'long',day:'numeric',month:'long'}).format(new Date()).toUpperCase();
 const hour=new Date().getHours(); $('greeting').innerHTML=(hour<12?'Buongiorno':hour<18?'Buon pomeriggio':'Buonasera')+'<span class="accent">.</span>';
