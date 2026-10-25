@@ -23,3 +23,5 @@
 @keyframes grow-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 @media(max-width:380px){.growth-hero{gap:12px;padding:13px}.growth-orbit{width:84px;height:84px}.growth-hero-copy strong{font-size:15px}.growth-stats strong{font-size:20px}}
 @media(prefers-reduced-motion:reduce){.growth-orbit{animation:none}}
+
+[hidden]{display:none!important}.emergency-danger{color:#ffced2;border-color:#9c445c;background:#421b2b}.emergency-danger:disabled{opacity:.45}.recovery-shell{padding-bottom:70px}.recovery-shell h1{margin-top:20px;font-size:clamp(34px,8vw,48px)}.recovery-steps{padding-left:20px}.recovery-steps li{margin:15px 0;color:#d4e5ee;font-size:14px;line-height:1.65}.recovery-shell .growth-radar-item{overflow-wrap:anywhere}
