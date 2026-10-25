@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from storage import Store
 from provider_omnipotent import omnipotent_ask, SYSTEM_PROMPT
 import gmail_api
+import growth
 
 app = FastAPI(title='Jarvis Personal Assistant', docs_url=None, redoc_url=None)
 store = Store()
@@ -58,6 +59,57 @@ class DraftInput(BaseModel):
 class SendInput(BaseModel):
     draft_id: str
     confirmation: str
+
+
+
+class GrowthProfileInput(BaseModel):
+    focus: str | None = Field(default=None, min_length=2, max_length=180)
+    market: str | None = Field(default=None, min_length=2, max_length=100)
+    minutes_per_day: int | None = Field(default=None, ge=10, le=480)
+    starting_budget_eur: int | None = Field(default=None, ge=0, le=100000)
+    goal_90_days: str | None = Field(default=None, min_length=2, max_length=250)
+
+
+class GrowthTaskInput(BaseModel):
+    done: bool
+
+
+class GrowthIdeaInput(BaseModel):
+    topic: str = Field(default="", max_length=300)
+
+
+class GrowthMentorInput(BaseModel):
+    question: str = Field(min_length=3, max_length=1000)
+
+
+@app.get('/api/growth', dependencies=[Depends(secure)])
+def growth_dashboard():
+    return growth.dashboard(store)
+
+
+@app.put('/api/growth/profile', dependencies=[Depends(secure)])
+def growth_profile(data: GrowthProfileInput):
+    return {"profile": growth.save_profile(store, data.model_dump(exclude_none=True))}
+
+
+@app.patch('/api/growth/tasks/{task_id}', dependencies=[Depends(secure)])
+def growth_task(task_id: str, data: GrowthTaskInput):
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}:(impresa|carriera|visibilita)', task_id):
+        raise HTTPException(422, "Missione non valida.")
+    try:
+        return growth.set_task(store, task_id, data.done)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@app.post('/api/growth/ideas', dependencies=[Depends(secure)])
+async def growth_idea(data: GrowthIdeaInput):
+    return await growth.generate_idea(store, omnipotent_ask, data.topic)
+
+
+@app.post('/api/growth/mentor', dependencies=[Depends(secure)])
+async def growth_mentor(data: GrowthMentorInput):
+    return await growth.mentor(store, omnipotent_ask, data.question)
 
 
 @app.get('/')
