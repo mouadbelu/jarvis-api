@@ -23,7 +23,7 @@ function page(name) {
   });
   if (name === 'chat') $('messages').scrollTop = $('messages').scrollHeight;
   if (name === 'mail') loadMail().catch(() => {});
-  if (name === 'settings') loadMemory().catch(() => {});
+  if (name === 'settings') { loadMemory().catch(() => {}); loadEmergencyStatus().catch(() => {}); }
   if (name === 'growth') loadGrowth().catch(e => notify(e.message));
 }
 async function api(path, options={}) {
@@ -368,6 +368,93 @@ $('growth-ask').onclick=async()=>{
     if(result.mode!=='ai')notify('Guida di base: provider AI non disponibile per questa richiesta.');
   }catch(e){out.textContent='Analisi non riuscita: '+e.message;}
   finally{button.disabled=false;}
+};
+
+
+/* Owner-only recovery console. The independent phrase and root token never persist
+   in localStorage, sessionStorage, logs or any JavaScript-readable cookie. */
+function clearEmergencyInputs() {
+  for (const id of ['emergency-owner','emergency-secret','emergency-secret-repeat','emergency-typed']) $(id).value='';
+}
+async function loadEmergencyStatus() {
+  const consoleEl=$('emergency-console');
+  if(!consoleEl) return;
+  try {
+    const info=await api('/api/emergency/status');
+    consoleEl.hidden=false;
+    $('emergency-state').textContent = !info.configured
+      ? 'Da configurare: imposta una frase di recupero separata.'
+      : info.locked ? '🔒 BLOCCO ATTIVO: accesso privato interrotto.'
+      : 'Protezione proprietario attivata: Jarvis operativo.';
+    $('emergency-enroll').hidden=!!info.configured;
+    $('emergency-secret-repeat').parentElement.hidden=!!info.configured;
+    $('emergency-unlock').hidden=!info.configured || !info.locked;
+    $('emergency-lock').disabled=!info.configured || info.locked;
+    $('emergency-wipe').disabled=!info.configured;
+  } catch (_) {
+    consoleEl.hidden=true; // Missing backend must not leave deceptive buttons visible.
+  }
+}
+function emergencyPayload(withConfirmation=false) {
+  const o={
+    owner_token:$('emergency-owner').value,
+    recovery_phrase:$('emergency-secret').value
+  };
+  if(withConfirmation) o.confirmation=$('emergency-typed').value.trim();
+  return o;
+}
+async function emergencyCall(endpoint,payload) {
+  try {
+    return await api('/api/emergency/'+endpoint,{method:'POST',body:JSON.stringify(payload)});
+  } finally {
+    clearEmergencyInputs();
+    await loadEmergencyStatus();
+  }
+}
+$('emergency-enroll').onclick=async()=>{
+  const payload=emergencyPayload();
+  if(payload.recovery_phrase!==$('emergency-secret-repeat').value) {
+    notify('Le due frasi di recupero non coincidono.');return;
+  }
+  if(!confirm('Attivare il protocollo di emergenza? Conserva la frase in un password manager: non sarà recuperabile.'))return;
+  try {
+    await emergencyCall('enroll',payload);
+    notify('Protezione attivata. Conserva la frase fuori da Jarvis.');
+  } catch(e) {notify(e.message);}
+};
+$('emergency-lock').onclick=async()=>{
+  const payload=emergencyPayload(true);
+  if(payload.confirmation!=='BLOCCA JARVIS') {
+    notify('Scrivi esattamente BLOCCA JARVIS.');return;
+  }
+  if(!confirm('Bloccare subito tutte le funzioni private e revocare le sessioni su ogni dispositivo?'))return;
+  try {
+    await emergencyCall('lock',payload);
+    clearPrivateScreen();
+    notify('Blocco di emergenza attivo. Per riaprire usa token e frase separata.');
+  } catch(e) {notify(e.message);}
+};
+$('emergency-unlock').onclick=async()=>{
+  const payload=emergencyPayload();
+  if(!confirm('Sbloccare il server Jarvis? Tutte le sessioni resteranno revocate.'))return;
+  try {
+    await emergencyCall('unlock',payload);
+    clearPrivateScreen();
+    notify('Server sbloccato. Ora effettua un nuovo accesso.');
+  } catch(e) {notify(e.message);}
+};
+$('emergency-wipe').onclick=async()=>{
+  const payload=emergencyPayload(true);
+  if(payload.confirmation!=='CANCELLA TUTTO') {
+    notify('Scrivi esattamente CANCELLA TUTTO.');return;
+  }
+  if(!confirm('ATTENZIONE: cancellare per sempre chat, memorie, dati Growth Lab e token Gmail archiviati da Jarvis?'))return;
+  if(!confirm('CONFERMA FINALE: questa azione non è annullabile. Non elimina backup né credenziali di Railway/OpenAI/Google. Procedere?'))return;
+  try {
+    const r=await emergencyCall('wipe',payload);
+    clearPrivateScreen();
+    notify(r.local_data_deleted?'Dati locali cancellati. Jarvis rimane bloccato.':'Risultato incerto: controlla lo stato.');
+  } catch(e) {notify('Cancellazione non confermata: '+e.message);}
 };
 
 document.querySelectorAll('.bottom button').forEach(b => b.onclick=()=>page(b.dataset.page));
