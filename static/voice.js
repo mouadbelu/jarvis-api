@@ -27,7 +27,7 @@
 
   function phaseSet(next, label, description) {
     phase = next;
-    root.dataset.voicePhase = next;
+    root.querySelector('.voice-console').dataset.voicePhase = next;
     stateText.textContent = label;
     hint.textContent = description;
     action.textContent = next === 'listening' ? 'Termina e invia'
@@ -122,7 +122,7 @@
     answer.textContent = 'Sto preparando la risposta…';
     try {
       const data = await api('/api/chat', {
-        method: 'POST', body: JSON.stringify({text, conversation: 'main'})
+        method: 'POST', body: JSON.stringify({text, conversation: 'voice'})
       });
       if (requestSeq !== sequence || !root.classList.contains('active')) return;
       latestResponse = String(data.reply || '');
@@ -135,6 +135,29 @@
       if (requestSeq !== sequence || !root.classList.contains('active')) return;
       answer.textContent = 'Non riesco a rispondere: ' + error.message;
       phaseSet('idle', 'Richiesta non riuscita', 'Riprova con il microfono.');
+    }
+  }
+
+  async function loadVoiceHistory() {
+    if (!authenticated) {
+      history.replaceChildren();
+      return;
+    }
+    try {
+      const result = await api('/api/history?conversation=voice');
+      if (!root.classList.contains('active')) return;
+      history.replaceChildren();
+      const messages = (result.messages || []).slice(-8);
+      // Display oldest first. addTurn prepends the newer messages.
+      messages.forEach(item => addTurn(item.role, item.content));
+      const lastAssistant = [...messages].reverse().find(item => item.role === 'assistant');
+      if (lastAssistant) {
+        latestResponse = String(lastAssistant.content || '');
+        repeat.disabled = !latestResponse;
+        answer.textContent = latestResponse;
+      }
+    } catch (_) {
+      // A stale session is handled by the standard authentication screen.
     }
   }
 
@@ -217,6 +240,7 @@
   });
   document.addEventListener('jarvis:pagechange', event => {
     if (event.detail.name !== 'voice') stopVoice();
+    else void loadVoiceHistory();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) stopVoice();
