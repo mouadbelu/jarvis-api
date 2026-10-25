@@ -1,6 +1,8 @@
 'use strict';
 const $ = id => document.getElementById(id);
-let token = sessionStorage.getItem('jarvis_token') || '';
+// Migrates away from browser-readable root tokens. Re-login once after upgrade.
+sessionStorage.removeItem('jarvis_token');
+let authenticated = false;
 let toastTimer = null;
 let lastBriefing = null;
 const speechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -25,15 +27,20 @@ function page(name) {
   if (name === 'growth') loadGrowth().catch(e => notify(e.message));
 }
 async function api(path, options={}) {
-  const headers = Object.assign({'Accept':'application/json'}, options.body ? {'Content-Type':'application/json'} : {}, token ? {'Authorization':'Bearer ' + token} : {});
+  const method=(options.method||'GET').toUpperCase();
+  const headers = Object.assign(
+    {'Accept':'application/json'},
+    options.body ? {'Content-Type':'application/json'} : {},
+    !['GET','HEAD','OPTIONS'].includes(method) ? {'X-Jarvis-Request':'1'} : {}
+  );
   let r;
-  try { r = await fetch(path, Object.assign({}, options, {headers})); }
+  try { r = await fetch(path, Object.assign({}, options, {headers, credentials:'same-origin'})); }
   catch (_) { throw new Error('Connessione non disponibile. Controlla internet o Railway.'); }
   let result;
   try { result = await r.json(); } catch (_) { result = {}; }
   if (!r.ok) {
     let reason = typeof result.detail === 'string' ? result.detail : 'Errore ' + r.status;
-    if (r.status === 401) { $('connection').classList.remove('ok'); status('Token non valido.'); }
+    if (r.status === 401) { authenticated=false; $('connection').classList.remove('ok'); status('Sessione scaduta o accesso non valido.'); }
     throw new Error(reason);
   }
   return result;
@@ -52,18 +59,27 @@ function renderEmails(target, messages, emptyText) {
 }
 async function check() {
   const publicConfig = await api('/api/config');
-  if (!publicConfig.access_ready) { $('mode').textContent='Configura la chiave di accesso su Railway'; return; }
-  if (!token) { $('mode').textContent='Apri Impostazioni per accedere'; return; }
+  if (!publicConfig.access_ready) {
+    authenticated=false;
+    $('mode').textContent='Configura la chiave di accesso su Railway';
+    return;
+  }
   try {
-    await api('/api/history');
+    await api('/api/auth/status');
+    authenticated=true;
     $('connection').classList.add('ok');
-    $('mode').textContent=publicConfig.ai_ready ? 'Pronto ad assisterti' : 'Configura un provider AI su Railway';
-    status('Accesso autorizzato.');
+    $('mode').textContent=publicConfig.ai_ready?'Pronto ad assisterti':'Configura un provider AI su Railway';
+    status('Sessione protetta attiva.');
     await Promise.allSettled([loadBriefing(),loadHistory()]);
-  } catch (e) { notify(e.message); }
+  } catch (_) {
+    authenticated=false;
+    $('connection').classList.remove('ok');
+    $('mode').textContent='Apri Impostazioni per accedere';
+    status('Accedi per iniziare una sessione sicura.');
+  }
 }
 async function loadBriefing() {
-  if (!token) { notify('Prima accedi dalle Impostazioni.'); return; }
+  if (!authenticated) { notify('Prima accedi dalle Impostazioni.'); return; }
   const b=await api('/api/briefing'); lastBriefing=b;
   $('clock').textContent=b.time;
   $('date-note').textContent=b.date;
@@ -76,7 +92,7 @@ function addBubble(role, content) {
   $('messages').append(b); $('messages').scrollTop=$('messages').scrollHeight; return b;
 }
 async function loadHistory() {
-  if (!token) return;
+  if (!authenticated) return;
   const h=await api('/api/history'); $('messages').replaceChildren();
   if (!h.messages.length) addBubble('assistant','Ciao! Sono Jarvis. Da cosa iniziamo?');
   else h.messages.forEach(m => addBubble(m.role,m.content));
@@ -90,7 +106,7 @@ function speak(text) {
 $('chat-form').addEventListener('submit',async e => {
   e.preventDefault();
   const message=$('chat-input').value.trim(); if (!message) return;
-  if (!token) { page('settings'); notify('Accedi prima di usare Jarvis.'); return; }
+  if (!authenticated) { page('settings'); notify('Accedi prima di usare Jarvis.'); return; }
   $('chat-input').value=''; addBubble('user',message);
   document.body.classList.add('thinking'); $('neural-status').textContent='Sto elaborando la tua richiesta…';
   const pending=addBubble('assistant','Sto elaborando…'); $('send').disabled=true;
@@ -120,19 +136,56 @@ $('speak-brief').onclick=() => {
   speak(text);
 };
 $('save-access').addEventListener('click',async () => {
-  token=$('access').value.trim();
-  if (token.length < 24) { notify('Token troppo corto. Deve avere almeno 24 caratteri.'); return; }
-  sessionStorage.setItem('jarvis_token',token); $('access').value='';
-  await check();
+  const input=$('access');
+  const value=input.value.trim();
+  input.value='';
+  if (value.length<24) {
+    notify('Token non valido. Deve avere almeno 24 caratteri.');
+    return;
+  }
+  try {
+    await api('/api/auth/login',{method:'POST',body:JSON.stringify({token:value})});
+    await check();
+    if(authenticated)notify('Sessione protetta attivata. Le chiavi restano sul server.');
+  } catch(e) {
+    authenticated=false;
+    notify(e.message);
+  }
 });
-$('logout').onclick=() => {
-  token=''; sessionStorage.removeItem('jarvis_token');
-  $('connection').classList.remove('ok'); status('Sessione chiusa su questo dispositivo.');
-  $('messages').replaceChildren(); $('home-mail').replaceChildren(); $('mail-list').replaceChildren();
-  $('unread').textContent='—'; $('mode').textContent='Accesso necessario'; notify('Disconnesso.');
+function clearPrivateScreen() {
+  authenticated=false;
+  $('connection').classList.remove('ok');
+  status('Sessione chiusa su questo dispositivo.');
+  $('messages').replaceChildren();
+  $('home-mail').replaceChildren();
+  $('mail-list').replaceChildren();
+  $('growth-missions').replaceChildren();
+  $('growth-ideas').replaceChildren();
+  $('growth-radar').replaceChildren();
+  $('unread').textContent='—';
+  $('mode').textContent='Accesso necessario';
+}
+$('logout').onclick=async () => {
+  try {
+    await api('/api/auth/logout',{method:'POST'});
+    clearPrivateScreen();
+    notify('Sessione revocata.');
+  } catch(e) {
+    notify('Impossibile confermare la disconnessione: '+e.message);
+  }
+};
+$('logout-all').onclick=async () => {
+  if(!confirm('Revocare tutte le sessioni di Jarvis su ogni dispositivo?'))return;
+  try {
+    await api('/api/auth/logout-all',{method:'POST'});
+    clearPrivateScreen();
+    notify('Tutte le sessioni sono state revocate.');
+  } catch(e) {
+    notify('Revoca non confermata: '+e.message);
+  }
 };
 async function loadMemory() {
-  if (!token) return;
+  if (!authenticated) return;
   try {
     const result=await api('/api/memory'); const list=$('memory-list'); list.replaceChildren();
     for (const [key,value] of Object.entries(result.memories)) {
@@ -152,7 +205,7 @@ $('save-memory').onclick=async () => {
   catch(e) { notify(e.message); }
 };
 async function loadMail() {
-  if (!token) return;
+  if (!authenticated) return;
   try {
     const state=await api('/api/gmail/status');
     $('gmail-state').textContent=state.connected ? 'Connesso' : state.configured ? 'Pronto per il collegamento' : 'OAuth non configurato su Railway';
@@ -270,13 +323,13 @@ function growthRender(data) {
   }
 }
 async function loadGrowth() {
-  if(!token){notify('Accedi dalle Impostazioni per iniziare il Growth Lab.');return;}
+  if(!authenticated){notify('Accedi dalle Impostazioni per iniziare il Growth Lab.');return;}
   growthRender(await api('/api/growth'));
 }
 $('growth-reload').onclick=()=>loadGrowth().catch(err=>notify(err.message));
 $('growth-profile-form').addEventListener('submit',async event=>{
   event.preventDefault();
-  if(!token){notify('Accedi prima dalle Impostazioni.');return;}
+  if(!authenticated){notify('Accedi prima dalle Impostazioni.');return;}
   const data={
     focus:$('growth-focus').value.trim(),
     market:$('growth-market').value.trim(),
@@ -291,7 +344,7 @@ $('growth-profile-form').addEventListener('submit',async event=>{
   }catch(e){notify(e.message);}
 });
 $('growth-generate').onclick=async()=>{
-  if(!token){notify('Accedi prima dalle Impostazioni.');return;}
+  if(!authenticated){notify('Accedi prima dalle Impostazioni.');return;}
   const btn=$('growth-generate');btn.disabled=true;btn.textContent='Sto valutando un modello di business...';
   try{
     const idea=await api('/api/growth/ideas',{
@@ -304,7 +357,7 @@ $('growth-generate').onclick=async()=>{
   finally{btn.disabled=false;btn.textContent='Genera una nuova idea da testare';}
 };
 $('growth-ask').onclick=async()=>{
-  if(!token){notify('Accedi prima dalle Impostazioni.');return;}
+  if(!authenticated){notify('Accedi prima dalle Impostazioni.');return;}
   const question=$('growth-question').value.trim();
   if(question.length<3){notify('Scrivi una domanda imprenditoriale concreta.');return;}
   const button=$('growth-ask');button.disabled=true;
