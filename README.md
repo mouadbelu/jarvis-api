@@ -68,6 +68,25 @@ pip install -r requirements-dev.txt
 pytest -q
 ```
 
+
+## Growth Lab: cervello imprenditoriale (v2.1)
+
+Il tab **Crescita** è un cruscotto personale per costruire un'attività propria:
+
+- **Missioni ogni giorno:** tre azioni verificabili (impresa, carriera, visibilità), con completamento salvato nel volume SQLite, storico e sequenza di giorni attivi.
+- **Profilo strategico:** settore, mercato geografico, minuti disponibili, budget iniziale, obiettivo a 90 giorni. Questi dati orientano le analisi successive.
+- **Incubatore idee:** genera un'idea AI strutturata in cliente, offerta, test dei ricavi, primo esperimento di 7 giorni e rischi. Se il provider AI non risponde, propone modelli di prova locali, marcati come tali.
+- **Mentor d'impresa:** aiuta a creare offerte, trovare primi clienti, esaminare costi e validare ipotesi. Non promette reddito né simula ricerche reali non eseguite.
+- **Radar opportunità:** collegamenti a ricerche esterne per casting, creator e mercato lavorativo nei Paesi Bassi. **Non** sono offerte verificate o alert in tempo reale: controlla sempre compensi, requisiti, scadenze e inserzionista.
+- **Interfaccia futuristica:** hub con orbite animate, barre di progresso e indicatori; il cruscotto si aggiorna alla data locale ogni volta che viene aperto o aggiornato.
+- **Controlli automatici del codice:** workflow GitHub Actions su aggiornamenti e PR; include test per autenticazione, profilo, persistenza, idee, mentor e validazione.
+
+La versione attuale **non esegue operazioni di business, invia candidature, cerca automaticamente sul web o manda notifiche ogni mattina** mentre l'app è chiusa. Per questo serviranno servizi di automazione dedicati, fonti affidabili e permessi espliciti.
+
+### Nuovi endpoint privati
+`GET /api/growth`, `PUT /api/growth/profile`, `PATCH /api/growth/tasks/{task_id}`, `POST /api/growth/ideas`, `POST /api/growth/mentor`.
+
+
 ## API principali
 
 - `GET /health`, `GET /api/config`
