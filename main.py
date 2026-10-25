@@ -20,6 +20,7 @@ import gmail_api
 import growth
 import auth_firewall
 import emergency
+import assistant_briefing
 
 app = FastAPI(title='Jarvis Personal Assistant', docs_url=None, redoc_url=None)
 store = Store()
@@ -271,6 +272,13 @@ def clear_history(conversation: str='main'):
 
 
 async def reply(text, conversation):
+    # Deterministic, private answers to explicit briefing requests: never
+    # send inbox subjects/snippets to an AI provider without consent.
+    briefing_answer = await assistant_briefing.personal_update(store, text)
+    if briefing_answer is not None:
+        store.add_message(conversation, 'user', text)
+        store.add_message(conversation, 'assistant', briefing_answer)
+        return {'reply': briefing_answer}
     history = store.history(conversation, 18)
     memories = store.memories()
     context = SYSTEM_PROMPT
