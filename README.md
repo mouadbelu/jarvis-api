@@ -26,7 +26,7 @@ Apri `http://127.0.0.1:8000` sul computer. Per accedere dall'iPhone serve l'URL 
 
 | Variabile | Necessaria | Descrizione |
 | --- | --- | --- |
-| `JARVIS_ACCESS_TOKEN` | **Sì** | Almeno 24 caratteri casuali. Inseriscila poi nell'app in **Impostazioni**. |
+| `JARVIS_ACCESS_TOKEN` | **Sì** | Almeno 24 caratteri casuali. Usala per il login in **Impostazioni**; non viene salvata in JavaScript o nel browser. |
 | `JARVIS_OPENAI_KEY` | Per AI | API key OpenAI, in alternativa a Gemini o Claude. Il piano ChatGPT Plus **non** include crediti API. |
 | `JARVIS_GEMINI_KEY` | Alternativa | API key Google Gemini, se non usi OpenAI. |
 | `JARVIS_CLAUDE_KEY` | Alternativa | API key Anthropic. |
@@ -38,7 +38,7 @@ Apri `http://127.0.0.1:8000` sul computer. Per accedere dall'iPhone serve l'URL 
 | `JARVIS_TOKEN_KEY` | Per Gmail | Chiave cifratura Fernet, generata con `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`. **Non cambiarla dopo il collegamento**, altrimenti il token Gmail non sarà leggibile. |
 
 4. Attiva dominio HTTPS nel servizio Railway. Verifica `https://TUO-DOMINIO/health` e apri la pagina principale.
-5. Su Safari iPhone apri il sito → Condividi → **Aggiungi alla schermata Home**. Poi apri Jarvis e incolla il token di accesso in Impostazioni. Il token resta solo nella sessione locale.
+5. Su Safari iPhone apri il sito → Condividi → **Aggiungi alla schermata Home**. Poi apri Jarvis e incolla il token di accesso in Impostazioni. Il server crea una sessione di 8 ore con cookie HTTPS HttpOnly, Secure e SameSite=Strict. Il token principale non viene conservato nel browser.
 
 ## 3. Collegare Gmail (facoltativo)
 
@@ -52,7 +52,7 @@ Apri `http://127.0.0.1:8000` sul computer. Per accedere dall'iPhone serve l'URL 
 
 ## 4. Sicurezza e limiti
 
-- Tutti gli endpoint personali richiedono il token nell'header `Authorization: Bearer ...`. `/ask` legacy ora richiede anch'esso il token. Le API di health/config e i file statici sono pubblici.
+- Tutti gli endpoint personali richiedono l'autenticazione: cookie HttpOnly per l'app iPhone oppure token Authorization Bearer per le integrazioni fidate. `/ask` legacy ora richiede anch'esso il token. Le API di health/config e i file statici sono pubblici.
 - Nessuna API key AI o credenziale Gmail viene inviata al browser. I token OAuth Gmail sono cifrati nel database tramite Fernet.
 - Le bozze Gmail non sono inviate senza doppia conferma; un tentativo di invio consumato non viene ritentato automaticamente per evitare duplicazioni in caso di errore di rete.
 - La memoria conserva solo quanto aggiungi tu. Usa un volume persistente e proteggi il tuo account Railway/GitHub.
@@ -85,6 +85,20 @@ La versione attuale **non esegue operazioni di business, invia candidature, cerc
 
 ### Nuovi endpoint privati
 `GET /api/growth`, `PUT /api/growth/profile`, `PATCH /api/growth/tasks/{task_id}`, `POST /api/growth/ideas`, `POST /api/growth/mentor`.
+
+
+
+## Protezione proprietario, blocco emergenza e recupero
+
+In Impostazioni → Protocollo di emergenza, imposta una frase indipendente di almeno 20 caratteri, diversa dal token di accesso. Salvala fuori da Jarvis, preferibilmente in un gestore password affidabile: non è recuperabile dall'app. Il server salva un verificatore PBKDF2 con sale casuale.
+
+- Blocco immediato: il server revoca le sessioni e rifiuta chiamate private, comprese quelle con bearer token. Richiede token proprietario, frase indipendente e digitazione della conferma BLOCCA JARVIS.
+- Sblocco: richiede nuovamente entrambi i segreti; tutte le sessioni restano revocate.
+- Cancella dati locali: conferma testuale CANCELLA TUTTO, doppia conferma visiva e due segreti. Elimina cronologia, memorie, bozze, token Gmail cifrato, dati Growth Lab e sessioni; mantiene il server bloccato.
+- Piano furto d'identità: accessibile anche durante il blocco su /recovery e disponibile offline se la pagina è già stata memorizzata sul dispositivo.
+- Protezione web: cookie Secure/HttpOnly/SameSite, revoca delle sessioni, limite tentativi di login, difesa CSRF sulle mutazioni, CSP e protezione anti-clickjacking.
+
+La cancellazione non revoca né elimina automaticamente chiavi OpenAI, Google, GitHub o Railway e non cancella backup, log dei provider o dati già esfiltrati. In caso di compromissione di Railway/GitHub, usa un dispositivo affidabile, revoca le sessioni e ruota le chiavi direttamente dai provider. Nessun server è intoccabile. SQLite non dispone di cifratura applicativa a riposo; limita rigorosamente accesso a volume e account Railway.
 
 
 ## API principali
