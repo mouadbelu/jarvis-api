@@ -25,3 +25,43 @@
 @media(prefers-reduced-motion:reduce){.growth-orbit{animation:none}}
 
 [hidden]{display:none!important}.emergency-danger{color:#ffced2;border-color:#9c445c;background:#421b2b}.emergency-danger:disabled{opacity:.45}.recovery-shell{padding-bottom:70px}.recovery-shell h1{margin-top:20px;font-size:clamp(34px,8vw,48px)}.recovery-steps{padding-left:20px}.recovery-steps li{margin:15px 0;color:#d4e5ee;font-size:14px;line-height:1.65}.recovery-shell .growth-radar-item{overflow-wrap:anywhere}
+
+/* JARVIS voice-only conversation. Optimised for iPhone viewport and safe areas. */
+.bottom{grid-template-columns:repeat(6,minmax(0,1fr));padding-left:2px;padding-right:2px}
+.bottom button{min-width:0;gap:5px;font-size:clamp(8px,2.25vw,10px);padding:8px 1px}
+.bottom button span{font-size:clamp(18px,6vw,24px)}
+.voice-heading{text-align:center;margin-bottom:12px}
+.voice-heading h1{font-size:clamp(30px,8vw,46px);letter-spacing:-1.9px}
+.voice-console{position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:center;text-align:center;overflow:hidden;
+ border:1px solid #2b88974d;border-radius:24px;padding:12px 14px 27px;background:radial-gradient(ellipse at 50% 28%,#154b635c,transparent 67%),linear-gradient(160deg,#0e2333,#09131e);
+ box-shadow:0 15px 40px #01070c66,inset 0 1px #73ddf016}
+.voice-orbit{position:relative;width:min(67vw,260px);height:min(67vw,260px);margin:0 auto 3px}
+.voice-orbit canvas{display:block;width:100%;height:100%}
+.voice-orbit-ring{position:absolute;inset:20%;border:1px solid #5de6e733;border-radius:50%;pointer-events:none;box-shadow:0 0 45px #30dce420}
+.voice-status{font-size:19px;font-weight:650;color:#d9fcfd;line-height:1.3;margin:0 0 8px}
+.voice-hint{max-width:290px;font-size:12px;line-height:1.6;color:#9fbacb;min-height:38px;margin:0 0 19px}
+.voice-mic{width:84px;height:84px;border-radius:50%;border:1px solid #a4fff1a6;display:grid;place-items:center;
+ background:linear-gradient(145deg,#62e8ed,#a5ffd2);color:#093038;box-shadow:0 5px 25px #35e0d655,0 0 0 8px #3ee8db12;transition:transform .16s,box-shadow .16s}
+.voice-mic:active{transform:scale(.95)}
+.voice-mic:disabled{opacity:.58;cursor:not-allowed}
+.voice-mic svg{width:31px;height:31px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.voice-action{font-size:11px;font-weight:650;letter-spacing:1px;text-transform:uppercase;margin:15px 0 22px;color:#75e9e8}
+.voice-actions{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap}
+.voice-actions button{padding:11px 12px;font-size:12px;border-radius:12px;border:1px solid #385669;color:#c3e7f0;background:#173044}
+.voice-actions button:disabled{opacity:.35;cursor:not-allowed}
+.voice-console[data-voice-phase="listening"] .voice-mic{animation:voice-pulse 1.35s infinite;box-shadow:0 0 0 10px #36e6e725,0 0 35px #7bfff3a0}
+.voice-console[data-voice-phase="speaking"] .voice-orbit-ring{animation:voice-ring 2.7s ease-in-out infinite}
+.voice-console[data-voice-phase="thinking"] .voice-orbit-ring{animation:voice-ring 1.4s ease-in-out infinite}
+.voice-captions{margin:15px 0;padding:17px;background:#132437;border:1px solid #294354;border-radius:18px}
+.voice-captions .eyebrow{font-size:9px;color:#76deda;margin:4px 0 8px}
+.voice-transcript,.voice-answer{font-size:13px;line-height:1.65;overflow-wrap:anywhere;white-space:pre-wrap;color:#cfe4ef;margin:0 0 21px}
+.voice-answer{margin-bottom:0}
+.voice-log{display:flex;flex-direction:column;gap:9px;margin:10px 0 16px}
+.voice-turn{display:flex;flex-direction:column;gap:8px;background:#0c1c2b;border:1px solid #263a4d;border-radius:15px;padding:14px;margin:0;font-size:12px;line-height:1.6;color:#bfd5e4;overflow-wrap:anywhere}
+.voice-turn strong{color:#66e8e0;letter-spacing:1px;font-size:10px}
+.voice-turn-user{border-color:#2c706e;background:#102d34}
+.voice-privacy{font-size:11px;color:#89a1b3;line-height:1.6;margin:17px 0 8px}
+@keyframes voice-pulse{50%{box-shadow:0 0 0 18px #42efe807,0 0 55px #69fff3ab}}
+@keyframes voice-ring{50%{transform:scale(1.15);opacity:.48}}
+@media(max-width:360px){.voice-orbit{width:205px;height:205px}.bottom button{font-size:8px}.bottom button span{font-size:18px}}
+@media(prefers-reduced-motion:reduce){.voice-mic,.voice-orbit-ring{animation:none!important}}
