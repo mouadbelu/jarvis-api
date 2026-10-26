@@ -19,3 +19,9 @@ jobs:
         run: pytest -q
       - name: Validate Python compilation
         run: python -m compileall -q .
+      - name: Validate browser JavaScript syntax
+        run: |
+          node --check static/app.js
+          node --check static/voice.js
+          node --check static/neural.js
+          node --check static/sw.js
