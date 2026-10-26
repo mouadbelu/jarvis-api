@@ -10,13 +10,15 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Depends, Request
-from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from storage import Store
 from provider_omnipotent import omnipotent_ask, SYSTEM_PROMPT
 from voice_transcription import transcribe_audio, MAX_AUDIO_BYTES, SUPPORTED_MIME
+from natural_voice import create_voice, VoiceUnavailable, MAX_TEXT
+from greeting_style import clean_repeated_greeting
 import gmail_api
 import growth
 import auth_firewall
@@ -165,6 +167,11 @@ def browser_logout_everywhere():
     return response
 
 
+class SpeechInput(BaseModel):
+    text: str = Field(min_length=1, max_length=MAX_TEXT)
+    voice: str = Field(default='Orus', max_length=30)
+
+
 class ChatInput(BaseModel):
     text: str = Field(min_length=1,max_length=4000)
     conversation: str = Field(default='main', min_length=1, max_length=40, pattern=r'^[a-zA-Z0-9_-]+$')
@@ -300,9 +307,24 @@ async def reply(text, conversation):
     answer = await omnipotent_ask(prompt, sys=context)
     if not answer:
         raise HTTPException(502, 'Il recupero automatico non è riuscito: i provider AI non rispondono. Apri Impostazioni → Diagnostica per verificare i motivi.')
+    # A greeting belongs to the start of a conversation, not every answer.
+    answer = clean_repeated_greeting(answer, len(history))
     store.add_message(conversation,'user',text)
     store.add_message(conversation,'assistant',answer)
     return {'reply':answer}
+
+
+@app.post('/api/voice/speak', dependencies=[Depends(secure)])
+async def voice_speak(data: SpeechInput):
+    """Return natural voice audio; no voice clips or text are saved to disk."""
+    try:
+        wav = await create_voice(data.text, data.voice)
+    except VoiceUnavailable:
+        raise HTTPException(503, 'Voce naturale temporaneamente non disponibile; puoi usare la voce del dispositivo.')
+    except ValueError:
+        raise HTTPException(422, 'Testo o voce non validi.')
+    return Response(content=wav, media_type='audio/wav',
+                    headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
 
 
 @app.post('/api/voice/transcribe', dependencies=[Depends(secure)])
