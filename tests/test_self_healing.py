@@ -24,6 +24,7 @@ def clean_breakers():
 
 
 def test_credit_exhaustion_pauses_only_offending_provider(monkeypatch):
+    monkeypatch.setenv('JARVIS_OPENAI_KEY', 'fake-test-key')
     clock = [100.0]
     monkeypatch.setattr(self_healing.time, 'monotonic', lambda: clock[0])
     assert self_healing.may_try('OpenAI')
