@@ -23,7 +23,7 @@ function page(name) {
   });
   if (name === 'chat') $('messages').scrollTop = $('messages').scrollHeight;
   if (name === 'mail') loadMail().catch(() => {});
-  if (name === 'settings') { loadMemory().catch(() => {}); loadEmergencyStatus().catch(() => {}); }
+  if (name === 'settings') { loadMemory().catch(() => {}); loadEmergencyStatus().catch(() => {}); loadDiagnostics().catch(() => {}); }
   if (name === 'growth') loadGrowth().catch(e => notify(e.message));
   document.dispatchEvent(new CustomEvent('jarvis:pagechange', {detail: {name}}));
 }
@@ -147,7 +147,7 @@ $('save-access').addEventListener('click',async () => {
   try {
     await api('/api/auth/login',{method:'POST',body:JSON.stringify({token:value})});
     await check();
-    if(authenticated)notify('Sessione protetta attivata. Le chiavi restano sul server.');
+    if(authenticated){ notify('Sessione protetta attivata. Le chiavi restano sul server.'); void loadDiagnostics(); }
   } catch(e) {
     authenticated=false;
     notify(e.message);
@@ -186,6 +186,57 @@ $('logout-all').onclick=async () => {
     notify('Revoca non confermata: '+e.message);
   }
 };
+
+/* Owner-only automated recovery dashboard: sanitized server health, no secrets. */
+async function loadDiagnostics() {
+  const state=$('recovery-state'), providers=$('recovery-providers'), events=$('recovery-events');
+  if(!state || !providers || !events)return;
+  if(!authenticated){
+    state.textContent='Accedi prima per verificare lo stato.';
+    providers.replaceChildren();events.replaceChildren();
+    return;
+  }
+  state.textContent='Controllo dei servizi in corso…';
+  try {
+    const result=await api('/api/diagnostics');
+    const names={OpenAI:'OpenAI',Gemini:'Gemini',Claude:'Claude'};
+    const states={
+      online:'Connesso',unknown:'Non ancora provato',non_configurato:'Non configurato',
+      pausa_automatica:'In pausa per recupero',pronto_al_ritest:'Pronto al nuovo tentativo',
+      error:'Errore rilevato'
+    };
+    const available=Object.values(result.providers||{}).filter(item=>item.status==='online').length;
+    const configured=Object.values(result.providers||{}).filter(item=>item.status!=='non_configurato');
+    const dbText=result.database==='ok'?'Archivio integro':result.database==='non_verificato'?'Archivio da verificare':'Archivio da controllare manualmente';
+    state.textContent=dbText+' · '+(available?'AI funzionanti: '+available:configured.length?'AI in verifica o recupero':'Nessun provider AI configurato');
+    providers.replaceChildren();
+    for(const [name,info] of Object.entries(result.providers||{})){
+      const row=document.createElement('article');row.className='mail-item';
+      const heading=document.createElement('b');heading.textContent=(names[name]||name)+' · '+(states[info.status]||info.status);
+      const desc=document.createElement('p');
+      desc.textContent=(info.detail?info.detail+'. ':'')+
+        (info.retry_in_seconds>0?'Nuovo tentativo tra circa '+Math.max(1,Math.ceil(info.retry_in_seconds/60))+' minuti.':'');
+      row.append(heading,desc);providers.append(row);
+    }
+    events.replaceChildren();
+    for(const entry of (result.events||[]).slice(0,8)){
+      const el=document.createElement('p');el.className='muted';
+      el.textContent=(entry.time||'')+' · '+(entry.message||'Evento di sistema');
+      events.append(el);
+    }
+    if(!events.childElementCount){
+      const none=document.createElement('p');none.className='muted';none.textContent='Nessun guasto registrato dopo l’ultimo avvio.';
+      events.append(none);
+    }
+  }catch(err){
+    state.textContent='Diagnostica non disponibile: '+err.message;
+  }
+}
+$('recovery-refresh').onclick=()=>loadDiagnostics();
+setInterval(()=>{
+  if(authenticated && $('settings').classList.contains('active')) void loadDiagnostics();
+},60000);
+
 async function loadMemory() {
   if (!authenticated) return;
   try {
