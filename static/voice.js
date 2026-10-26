@@ -24,6 +24,8 @@
   let spoken = false;
   let sequence = 0;
   let currentUtterance = null;
+  let naturalAudio = null;
+  let naturalUrl = null;
 
   let recorder = null;
   let mediaStream = null;
@@ -49,6 +51,10 @@
 
   function stopAudio() {
     spoken = false;
+    if (naturalAudio) { try { naturalAudio.pause(); naturalAudio.removeAttribute('src'); } catch (_) {} }
+    naturalAudio = null;
+    if (naturalUrl) URL.revokeObjectURL(naturalUrl);
+    naturalUrl = null;
     if (synthesis) {
       try { synthesis.cancel(); } catch (_) {}
     }
@@ -104,7 +110,44 @@
     while (history.children.length > 8) history.lastElementChild.remove();
   }
 
-  function speakResponse(value) {
+  async function speakResponse(value) {
+    // Gemini neural TTS first; built-in Siri voice only if server synthesis fails.
+    stopAudio();
+    const speechSeq = sequence;
+    phaseSet('speaking', 'Preparo una voce naturale', 'Jarvis sta generando la risposta vocale…');
+    try {
+      const reply = await fetch('/api/voice/speak', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Accept': 'audio/wav', 'Content-Type': 'application/json', 'X-Jarvis-Request': '1'},
+        body: JSON.stringify({text: value.slice(0, 1100), voice: 'Orus'})
+      });
+      if (!reply.ok) throw new Error('Neural TTS not available');
+      const blob = await reply.blob();
+      if (speechSeq !== sequence || !root.classList.contains('active')) return;
+      naturalUrl = URL.createObjectURL(blob);
+      const audio = new Audio(naturalUrl);
+      naturalAudio = audio;
+      audio.onended = () => {
+        if (naturalAudio !== audio) return;
+        stopAudio();
+        phaseSet('idle', 'Risposta completata', 'Premi il microfono quando vuoi continuare.');
+      };
+      audio.onerror = () => {
+        if (naturalAudio !== audio) return;
+        stopAudio();
+        speakBrowserResponse(value);
+      };
+      await audio.play();
+      phaseSet('speaking', 'Jarvis sta parlando con voce AI', 'Puoi interrompere la risposta.');
+    } catch (_) {
+      if (speechSeq === sequence && root.classList.contains('active')) {
+        stopAudio();
+        speakBrowserResponse(value);
+      }
+    }
+  }
+
+  function speakBrowserResponse(value) {
     if (!synthesis || typeof window.SpeechSynthesisUtterance !== 'function') {
       phaseSet('idle', 'Risposta pronta', 'Lettura vocale non disponibile in questo browser.');
       return;
