@@ -16,7 +16,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 import auth_firewall
 import emergency
 
-LIVE_MODEL = "gemini-3.1-flash-live-preview"
+LIVE_MODEL = "gemini-3.8-live"
 MODEL_REGEX = re.compile(r"^gemini-[a-z0-9.-]{2,70}$")
 MAX_SESSION_SECONDS = 20 * 60
 MAX_PCM_FRAME = 16_384
@@ -50,7 +50,8 @@ def setup_message():
     return {
         "setup": {
             "model": "models/" + model,
-            "responseModalities": ["AUDIO"],
+            "generationConfig": {"responseModalities": ["AUDIO"],
+                                 "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": "Orus"}}}},
             "inputAudioTranscription": {},
             "outputAudioTranscription": {},
             "systemInstruction": {
