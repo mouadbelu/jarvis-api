@@ -53,7 +53,6 @@ async def create_voice(text: str, voice: str = "Orus") -> bytes:
             "responseModalities": ["AUDIO"],
             "speechConfig": {
                 "voiceConfig": {"voice": voice},
-                "languageCode": "it-IT",
             },
         },
     }
