@@ -65,3 +65,12 @@
 @keyframes voice-ring{50%{transform:scale(1.15);opacity:.48}}
 @media(max-width:360px){.voice-orbit{width:205px;height:205px}.bottom button{font-size:8px}.bottom button span{font-size:18px}}
 @media(prefers-reduced-motion:reduce){.voice-mic,.voice-orbit-ring{animation:none!important}}
+
+/* Continuous conversation: the app starts audio when entering Voce. */
+#live-controls{border:1px solid #285965;background:linear-gradient(120deg,#10283b,#0a1827);border-radius:16px;padding:14px}
+#live-controls h2{font-size:14px;margin:0 0 7px}
+#live-controls .muted{line-height:1.5}
+#live-status{color:#87ecd8;margin:12px 0;line-height:1.6}
+#voice.live-active .voice-console{box-shadow:0 0 24px #48e8dd20;border-color:#5ac5cb77}
+#voice.live-active #voice-mic,#voice.live-active #voice-action{display:none}
+#voice.live-active .voice-status::before{content:'● ';color:#70eccc}
