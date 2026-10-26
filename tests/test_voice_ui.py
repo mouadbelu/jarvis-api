@@ -51,4 +51,7 @@ def test_voice_recognition_has_safe_controls(client):
     assert 'cancelRecognition()' in js
     assert "document.hidden" in js
     assert 'SpeechSynthesisUtterance' in js
-    assert 'credentials:' not in js  # uses authenticated shared API wrapper
+    assert "credentials: 'same-origin'" in js  # raw audio uses secure session cookie, not a token
+    assert 'Authorization' not in js
+    assert 'localStorage' not in js
+    assert '/api/voice/transcribe' in js  # MediaRecorder fallback for Safari
