@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from storage import Store
 from provider_omnipotent import omnipotent_ask, SYSTEM_PROMPT
+from voice_transcription import transcribe_audio, MAX_AUDIO_BYTES, SUPPORTED_MIME
 import gmail_api
 import growth
 import auth_firewall
@@ -293,6 +294,33 @@ async def reply(text, conversation):
     store.add_message(conversation,'user',text)
     store.add_message(conversation,'assistant',answer)
     return {'reply':answer}
+
+
+@app.post('/api/voice/transcribe', dependencies=[Depends(secure)])
+async def voice_transcribe(request: Request):
+    """Private, one-shot voice transcription; audio is never written to storage."""
+    mime = (request.headers.get('content-type') or '').split(';', 1)[0].strip().lower()
+    if mime not in SUPPORTED_MIME:
+        raise HTTPException(415, 'Formato audio non supportato dal server.')
+    if request.headers.get('content-length'):
+        try:
+            if int(request.headers['content-length']) > MAX_AUDIO_BYTES:
+                raise HTTPException(413, 'Registrazione troppo grande. Parla per meno di 20 secondi.')
+        except ValueError:
+            raise HTTPException(400, 'Dimensione audio non valida.')
+    parts = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > MAX_AUDIO_BYTES:
+            raise HTTPException(413, 'Registrazione troppo grande. Parla per meno di 20 secondi.')
+        parts.append(chunk)
+    if total < 100:
+        raise HTTPException(422, 'Registrazione vuota o troppo breve.')
+    result = await transcribe_audio(b''.join(parts), mime)
+    if not result:
+        raise HTTPException(503, 'Trascrizione vocale non disponibile. Verifica modello audio e quote dei provider su Railway.')
+    return {'text': result}
 
 
 @app.post('/api/chat', dependencies=[Depends(secure)])
