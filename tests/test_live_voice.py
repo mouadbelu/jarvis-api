@@ -47,7 +47,7 @@ def test_live_websocket_anonymous_denied(client):
 def test_live_websocket_wrong_origin_denied(client):
     login = client.post('/api/auth/login',
                         json={'token': 'a_fake_long_test_access_token_12345678'},
-                        headers={'Origin': 'https://testserver', 'X-Jarvis-Request': '1'})
+                        headers={'Origin': 'http://testserver', 'X-Jarvis-Request': '1'})
     assert login.status_code == 200
     with pytest.raises(WebSocketDisconnect) as err:
         with client.websocket_connect('/api/live/voice', headers={'origin':'https://evil.example'}):
