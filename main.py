@@ -9,7 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Depends, Request
+from fastapi import FastAPI, Header, HTTPException, Depends, Request, WebSocket
 from fastapi.responses import FileResponse, RedirectResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -25,6 +25,7 @@ import auth_firewall
 import emergency
 import assistant_briefing
 import self_healing
+import live_voice
 
 app = FastAPI(title='Jarvis Personal Assistant', docs_url=None, redoc_url=None)
 store = Store()
@@ -252,6 +253,11 @@ def index():
 @app.get('/sw.js')
 def service_worker():
     return FileResponse(STATIC / 'sw.js', media_type='application/javascript')
+
+
+@app.websocket('/api/live/voice')
+async def live_voice_socket(websocket: WebSocket):
+    await live_voice.websocket_session(websocket, store)
 
 
 @app.get('/health')
