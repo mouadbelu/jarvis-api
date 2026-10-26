@@ -34,9 +34,23 @@ async function api(path, options={}) {
     options.body ? {'Content-Type':'application/json'} : {},
     !['GET','HEAD','OPTIONS'].includes(method) ? {'X-Jarvis-Request':'1'} : {}
   );
+  // Retry only safe reads. Never re-send emails, recordings, writes or payments.
   let r;
-  try { r = await fetch(path, Object.assign({}, options, {headers, credentials:'same-origin'})); }
-  catch (_) { throw new Error('Connessione non disponibile. Controlla internet o Railway.'); }
+  for(let attempt=0;attempt<(method==='GET'?2:1);attempt++){
+    try { r = await fetch(path, Object.assign({}, options, {headers, credentials:'same-origin'})); }
+    catch (_) {
+      if(method==='GET' && attempt===0){
+        await new Promise(resolve=>setTimeout(resolve,450));
+        continue;
+      }
+      throw new Error('Connessione non disponibile. Controlla internet o Railway.');
+    }
+    if(method==='GET' && attempt===0 && [502,503,504].includes(r.status)){
+      await new Promise(resolve=>setTimeout(resolve,450));
+      continue;
+    }
+    break;
+  }
   let result;
   try { result = await r.json(); } catch (_) { result = {}; }
   if (!r.ok) {
