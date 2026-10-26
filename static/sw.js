@@ -1,4 +1,4 @@
-const CACHE = 'jarvis-shell-v6-voice-interface';
+const CACHE = 'jarvis-shell-v7-self-healing';
 const SHELL = ['/sw.js', '/', '/recovery', '/static/recovery.html', '/static/style.css', '/static/app.js', '/static/voice.js', '/static/neural.js', '/static/icon.svg', '/static/icon.png', '/static/manifest.webmanifest'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
