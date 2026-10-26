@@ -1,90 +1,128 @@
-"""LLM providers with environment-only API keys (never expose to browser)."""
+"""Fault-tolerant AI providers with server-only secrets and safe diagnostics."""
+import asyncio
 import os
-import httpx
 import re
 
+import httpx
+import self_healing
+
 SYSTEM_PROMPT = (
-    'Sei Jarvis, l’assistente personale di Mouad. Rispondi in italiano, con precisione, ' 
-    'senza inventare accesso a email o app. Non affermare di aver inviato messaggi ' 
-    'o compiuto azioni se non le hai realmente completate. Quando un’azione ha ' 
+    'Sei Jarvis, l’assistente personale di Mouad. Rispondi in italiano, con precisione, '
+    'senza inventare accesso a email o app. Non affermare di aver inviato messaggi '
+    'o compiuto azioni se non le hai realmente completate. Quando un’azione ha '
     'conseguenze esterne, ricorda che richiede conferma esplicita.'
 )
 
 
 def _safe_error_code(response):
     try:
-        data = response.json()
-        err = data.get('error', {})
-        value = err.get('code') or err.get('status') or err.get('type') if isinstance(err, dict) else None
-        value = str(value or 'unspecified')
+        error = response.json().get('error', {})
+        code = error.get('code') or error.get('status') or error.get('type') if isinstance(error, dict) else ''
+        value = str(code or 'unspecified')
         return value[:64] if re.fullmatch(r'[a-zA-Z0-9_.-]{1,64}', value) else 'redacted'
-    except (ValueError, AttributeError):
+    except (ValueError, AttributeError, TypeError):
         return 'unspecified'
+
+
+async def _post(client, url, headers, json):
+    """Retry *one* transient AI request; never retry authentication or quota errors."""
+    for attempt in range(2):
+        try:
+            response = await client.post(url, headers=headers, json=json)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as exc:
+            if attempt == 0 and exc.response.status_code in (500, 502, 503, 504):
+                await asyncio.sleep(0.35)
+                continue
+            raise
+        except httpx.TransportError:
+            if attempt == 0:
+                await asyncio.sleep(0.35)
+                continue
+            raise
+
+
+def _failure(provider, exc, model=None):
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        code = _safe_error_code(exc.response)
+        print(f'Jarvis recovery: {provider} HTTP {status} code={code}', flush=True)
+        self_healing.provider_failed(provider, status, code)
+    else:
+        print(f'Jarvis recovery: {provider} {type(exc).__name__}', flush=True)
+        self_healing.provider_failed(provider)
 
 
 async def omnipotent_ask(prompt: str, sys: str | None = None) -> str | None:
     system = (sys or SYSTEM_PROMPT)[:10000]
-    timeout = httpx.Timeout(35.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        openai_key = os.getenv('JARVIS_OPENAI_KEY') or os.getenv('OPENAI_API_KEY')
-        if openai_key:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(35.0)) as client:
+        key = os.getenv('JARVIS_OPENAI_KEY') or os.getenv('OPENAI_API_KEY')
+        if key and self_healing.may_try('OpenAI'):
             try:
-                response = await client.post('https://api.openai.com/v1/chat/completions',
-                    headers={'Authorization': 'Bearer ' + openai_key},
-                    json={'model': os.getenv('JARVIS_OPENAI_MODEL', 'gpt-4o-mini'),
-                          'messages': [{'role':'system','content':system},{'role':'user','content':prompt}]})
-                response.raise_for_status()
+                response = await _post(
+                    client, 'https://api.openai.com/v1/chat/completions',
+                    {'Authorization': 'Bearer ' + key},
+                    {'model': os.getenv('JARVIS_OPENAI_MODEL', 'gpt-4o-mini'),
+                     'messages': [{'role': 'system', 'content': system},
+                                  {'role': 'user', 'content': prompt}]})
                 answer = response.json()['choices'][0]['message']['content']
-                if answer:
+                if isinstance(answer, str) and answer.strip():
+                    self_healing.provider_ok('OpenAI')
                     return answer
-            except httpx.HTTPStatusError as exc:
-                code = _safe_error_code(exc.response)
-                print(f'OpenAI request failed: HTTP {exc.response.status_code}, code={code}', flush=True)
-            except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-                print('OpenAI request failed:', type(exc).__name__, flush=True)
-        if os.getenv('JARVIS_GEMINI_KEY'):
-            # 2.5 returns 404 for many newly created projects even if models.list shows it.
-            # Prefer current Flash models; on 404 try another modern Flash SKU.
-            configured_model = os.getenv('JARVIS_GEMINI_MODEL', '').strip()
-            candidate_models = [configured_model] if configured_model else [
-                'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.6-flash',
+                raise ValueError('Empty provider reply')
+            except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+                _failure('OpenAI', exc)
+
+        key = os.getenv('JARVIS_GEMINI_KEY')
+        if key and self_healing.may_try('Gemini'):
+            configured = os.getenv('JARVIS_GEMINI_MODEL', '').strip()
+            # The first default is known to work for this deployment. Other
+            # configured models are not silently overridden.
+            candidates = [configured] if configured else [
+                'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.6-flash'
             ]
-            for model in candidate_models:
+            last_error = None
+            for model in candidates:
                 try:
-                    response = await client.post(
+                    response = await _post(
+                        client,
                         'https://generativelanguage.googleapis.com/v1beta/models/'
                         + model + ':generateContent',
-                        headers={'x-goog-api-key': os.environ['JARVIS_GEMINI_KEY']},
-                        json={'systemInstruction': {'parts': [{'text': system}]},
-                              'contents': [{'parts': [{'text': prompt}]}]},
-                    )
-                    response.raise_for_status()
+                        {'x-goog-api-key': key},
+                        {'systemInstruction': {'parts': [{'text': system}]},
+                         'contents': [{'parts': [{'text': prompt}]}]})
                     answer = response.json()['candidates'][0]['content']['parts'][0]['text']
-                    if answer:
-                        print(f'Gemini provider healthy: model={model}', flush=True)
+                    if isinstance(answer, str) and answer.strip():
+                        self_healing.provider_ok('Gemini')
                         return answer
-                except httpx.HTTPStatusError as exc:
-                    code = _safe_error_code(exc.response)
-                    print(f'Gemini request failed: model={model}, HTTP {exc.response.status_code}, code={code}', flush=True)
-                    if exc.response.status_code != 404:
+                    raise ValueError('Empty provider reply')
+                except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+                    last_error = exc
+                    # Retry alternate model only when the model is missing.
+                    if not (isinstance(exc, httpx.HTTPStatusError)
+                            and exc.response.status_code == 404):
                         break
-                except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-                    print(f'Gemini request failed: model={model}, {type(exc).__name__}', flush=True)
-                    break
-        if os.getenv('JARVIS_CLAUDE_KEY'):
+            if last_error is not None:
+                _failure('Gemini', last_error)
+
+        key = os.getenv('JARVIS_CLAUDE_KEY')
+        if key and self_healing.may_try('Claude'):
             try:
-                response = await client.post('https://api.anthropic.com/v1/messages',
-                    headers={'x-api-key': os.environ['JARVIS_CLAUDE_KEY'], 'anthropic-version':'2023-06-01'},
-                    json={'model': os.getenv('JARVIS_CLAUDE_MODEL', 'claude-sonnet-4-5'),
-                          'max_tokens': 1000, 'system': system,
-                          'messages':[{'role':'user','content':prompt}]})
-                response.raise_for_status()
-                return response.json()['content'][0]['text']
-            except httpx.HTTPStatusError as exc:
-                code = _safe_error_code(exc.response)
-                print(f'Claude request failed: HTTP {exc.response.status_code}, code={code}', flush=True)
-            except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-                print('Claude request failed:', type(exc).__name__, flush=True)
+                response = await _post(
+                    client, 'https://api.anthropic.com/v1/messages',
+                    {'x-api-key': key, 'anthropic-version': '2023-06-01'},
+                    {'model': os.getenv('JARVIS_CLAUDE_MODEL', 'claude-sonnet-4-5'),
+                     'max_tokens': 1000, 'system': system,
+                     'messages': [{'role': 'user', 'content': prompt}]})
+                answer = response.json()['content'][0]['text']
+                if isinstance(answer, str) and answer.strip():
+                    self_healing.provider_ok('Claude')
+                    return answer
+                raise ValueError('Empty provider reply')
+            except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+                _failure('Claude', exc)
     return None
+
 
 ask_omnipotent = omnipotent_ask
