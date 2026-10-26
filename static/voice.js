@@ -25,6 +25,14 @@
   let sequence = 0;
   let currentUtterance = null;
 
+  let recorder = null;
+  let mediaStream = null;
+  let clipChunks = [];
+  let clipTimer = null;
+  let discardClip = false;
+  let forceRecorder = false;
+  const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+
   function phaseSet(next, label, description) {
     phase = next;
     root.querySelector('.voice-console').dataset.voicePhase = next;
@@ -47,6 +55,26 @@
     currentUtterance = null;
   }
 
+
+  function releaseMicrophone() {
+    clearTimeout(clipTimer);
+    clipTimer = null;
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      mediaStream = null;
+    }
+  }
+
+  function cancelRecorder() {
+    discardClip = true;
+    if (recorder && recorder.state !== 'inactive') {
+      try { recorder.stop(); } catch (_) {}
+    }
+    recorder = null;
+    clipChunks = [];
+    releaseMicrophone();
+  }
+
   function cancelRecognition() {
     cancelled = true;
     const active = recognizer;
@@ -59,6 +87,7 @@
   function stopVoice() {
     sequence += 1; // Discard late UI updates, without pretending to cancel server work.
     cancelRecognition();
+    cancelRecorder();
     stopAudio();
     if (phase !== 'unsupported') phaseSet('idle', 'In pausa', 'Premi il microfono quando vuoi riprendere.');
   }
@@ -161,15 +190,112 @@
     }
   }
 
+
+  async function transcribeClip(blob, mime) {
+    const requestSeq = ++sequence;
+    phaseSet('thinking', 'Sto trascrivendo', 'Sto riconoscendo le tue parole…');
+    live.textContent = 'Trascrizione in corso…';
+    try {
+      const response = await fetch('/api/voice/transcribe', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Accept': 'application/json', 'Content-Type': mime, 'X-Jarvis-Request': '1'},
+        body: blob
+      });
+      let data = {};
+      try { data = await response.json(); } catch (_) {}
+      if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Errore ' + response.status);
+      if (requestSeq !== sequence || !root.classList.contains('active')) return;
+      const text = String(data.text || '').trim().slice(0, 3900);
+      if (!text) throw new Error('Non ho riconosciuto parole. Riprova.');
+      live.textContent = text;
+      await askVoice(text);
+    } catch (error) {
+      if (requestSeq !== sequence || !root.classList.contains('active')) return;
+      phaseSet('idle', 'Trascrizione non riuscita', error.message || 'Riprova a parlare.');
+    }
+  }
+
+  async function beginRecordedCapture() {
+    if (!canRecord) {
+      phaseSet('unsupported', 'Microfono non supportato',
+        'Apri Jarvis in Safari e verifica i permessi del microfono.');
+      return;
+    }
+    cancelRecognition();
+    stopAudio();
+    discardClip = false;
+    const captureSeq = sequence;
+    phaseSet('thinking', 'Attivazione microfono', 'Consenti a Safari di accedere al microfono.');
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}});
+    } catch (_) {
+      phaseSet('idle', 'Permesso microfono negato', 'Consenti il microfono nelle impostazioni del sito e riprova.');
+      return;
+    }
+    if (captureSeq !== sequence || !root.classList.contains('active')) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
+    mediaStream = stream;
+    clipChunks = [];
+    const types = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
+    const supported = types.find(type => MediaRecorder.isTypeSupported(type));
+    try {
+      recorder = new MediaRecorder(stream, supported ? {mimeType: supported} : {});
+    } catch (_) {
+      releaseMicrophone();
+      phaseSet('idle', 'Registrazione non supportata', 'Questo browser non riesce a registrare audio.');
+      return;
+    }
+    const current = recorder;
+    current.ondataavailable = event => {
+      if (event.data && event.data.size) clipChunks.push(event.data);
+    };
+    current.onerror = () => {
+      if (recorder !== current) return;
+      discardClip = true;
+      phaseSet('idle', 'Problema col microfono', 'Riprova a registrare.');
+      releaseMicrophone();
+    };
+    current.onstop = () => {
+      if (recorder !== current) return;
+      recorder = null;
+      releaseMicrophone();
+      if (discardClip || captureSeq !== sequence || !root.classList.contains('active')) {
+        clipChunks = [];
+        return;
+      }
+      const mime = (current.mimeType || supported || 'audio/mp4').split(';')[0].trim();
+      const audio = new Blob(clipChunks, {type: mime});
+      clipChunks = [];
+      if (audio.size < 100) {
+        phaseSet('idle', 'Audio troppo breve', 'Parla più a lungo e riprova.');
+        return;
+      }
+      void transcribeClip(audio, mime);
+    };
+    try {
+      current.start(250);
+      live.textContent = 'Registrazione in corso…';
+      phaseSet('listening', 'Ti ascolto', 'Parla normalmente, poi tocca di nuovo il microfono per inviare.');
+      clipTimer = setTimeout(() => {
+        if (recorder === current && current.state === 'recording') current.stop();
+      }, 19000);
+    } catch (_) {
+      cancelRecorder();
+      phaseSet('idle', 'Non riesco a registrare', 'Controlla i permessi del microfono.');
+    }
+  }
+
   function startCapture() {
     if (!authenticated) {
       page('settings');
       notify('Prima accedi a Jarvis dalle Impostazioni.');
       return;
     }
-    if (!Recognition) {
-      phaseSet('unsupported', 'Riconoscimento non disponibile',
-        'Apri Jarvis in Safari su iPhone. Puoi usare la dettatura della tastiera nella Chat.');
+    if (!Recognition || forceRecorder) {
+      void beginRecordedCapture();
       return;
     }
     if (phase === 'thinking') return;
@@ -204,7 +330,13 @@
         'language-not-supported': 'La lingua italiana non è disponibile su questo dispositivo.'
       };
       const reason = reasons[event.error] || 'Riconoscimento vocale non riuscito.';
-      phaseSet('idle', 'Microfono non disponibile', reason);
+      if (canRecord && event.error !== 'no-speech') {
+        forceRecorder = true;
+        phaseSet('idle', 'Modalità registrazione disponibile',
+          'Il riconoscimento di Safari non funziona. Tocca di nuovo il microfono per registrare e trascrivere sul server.');
+      } else {
+        phaseSet('idle', 'Microfono non disponibile', reason);
+      }
     };
     local.onend = () => {
       if (recognizer !== local) return;
@@ -224,7 +356,9 @@
 
   mic.addEventListener('click', () => {
     if (phase === 'listening') {
-      if (recognizer) {
+      if (recorder && recorder.state === 'recording') {
+        try { recorder.stop(); } catch (_) { cancelRecorder(); phaseSet('idle', 'In pausa', 'Riprova.'); }
+      } else if (recognizer) {
         try { recognizer.stop(); } catch (_) { cancelRecognition(); phaseSet('idle', 'In pausa', 'Riprova.'); }
       }
       return;
@@ -246,10 +380,11 @@
     if (document.hidden) stopVoice();
   });
   document.addEventListener('jarvis:logout', stopVoice);
-  if (!Recognition) {
+  if (!Recognition && !canRecord) {
     phaseSet('unsupported', 'Voce non disponibile',
-      'Usa Safari su iPhone con Siri attivo: altri browser possono limitare il microfono.');
+      'Il browser non permette riconoscimento né registrazione audio. Apri Jarvis in Safari.');
   } else {
-    phaseSet('idle', 'Pronto ad ascoltarti', 'Tocca il microfono e parla a Jarvis.');
+    phaseSet('idle', 'Pronto ad ascoltarti',
+      Recognition ? 'Tocca il microfono e parla a Jarvis.' : 'Tocca il microfono, parla e tocca di nuovo per inviare.');
   }
 })();
