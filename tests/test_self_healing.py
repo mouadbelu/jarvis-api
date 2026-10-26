@@ -37,7 +37,7 @@ def test_credit_exhaustion_pauses_only_offending_provider(monkeypatch):
     clock[0] += 21601
     assert self_healing.may_try('OpenAI')
     self_healing.provider_ok('OpenAI')
-    assert self_healing.snapshot()['providers']['OpenAI']['status'] == 'non_configurato'
+    assert self_healing.snapshot()['providers']['OpenAI']['status'] == 'online'
 
 
 def test_transient_retry_then_recovery(monkeypatch):
