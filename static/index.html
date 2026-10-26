@@ -36,6 +36,14 @@
           <h1>Parla con <span class="accent">Jarvis.</span></h1>
           <p class="subtitle">Una conversazione a voce, senza digitare messaggi.</p>
         </div>
+        <div class="panel" id="live-controls">
+          <div class="inline wrap">
+            <div><h2>Conversazione continua</h2><p class="muted">Entra, parla liberamente e lascia che Jarvis ti risponda. Non serve premere il microfono a ogni frase.</p></div>
+            <button type="button" class="secondary" id="live-exit">Esci dalla voce</button>
+          </div>
+          <p id="live-status" role="status" aria-live="polite" class="status">Si attiva automaticamente entrando nella sezione Voce.</p>
+          <p class="muted small">Il primo accesso potrebbe richiedere il permesso microfono di Safari. La sessione usa la connessione Live e può consumare credito Gemini. Il microfono si spegne quando esci o mandi l'app in background.</p>
+        </div>
         <div class="voice-console" data-voice-phase="idle">
           <div class="voice-orbit" aria-hidden="true"><canvas class="neural-canvas"></canvas><span class="voice-orbit-ring"></span></div>
           <div class="voice-status" id="voice-state" role="status" aria-live="polite">Pronto ad ascoltarti</div>
@@ -105,6 +113,7 @@
   </div>
   <script src="/static/app.js" defer></script>
   <script src="/static/voice.js" defer></script>
+  <script src="/static/live-client.js" defer></script>
   <script src="/static/neural.js" defer></script>
 </body>
 </html>
