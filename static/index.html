@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#080e18">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Jarvis">
+  <meta name="description" content="Jarvis, assistente personale privato per iPhone">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/icon.png">
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+  <link rel="stylesheet" href="/static/style.css">
+  <title>Jarvis | Assistente personale</title>
+</head>
+<body>
+  <div class="shell">
+    <header class="top"><div class="brandmark" aria-hidden="true">J</div><div class="brand"><b>JARVIS</b><span>PERSONAL INTELLIGENCE</span></div><div id="connection" class="dot" title="Connessione" aria-label="Stato connessione"></div></header>
+    <main>
+      <section class="view active" id="home" aria-label="Panoramica">
+        <p class="eyebrow" id="today">IL TUO ASSISTENTE</p>
+        <h1 id="greeting">Buongiorno<span class="accent">.</span></h1>
+        <p class="subtitle">Tutto quello che conta, in un solo posto.</p>
+        <div class="neural-stage" aria-hidden="true"><span class="neural-label">J.A.R.V.I.S. / NEURAL INTERFACE</span><canvas class="neural-canvas"></canvas><span class="neural-coordinate">PERSONAL INTELLIGENCE</span></div>
+        <div class="sphere-caption"><span class="pulse"></span><span id="mode">In attesa di configurazione</span></div>
+        <div class="actions"><button class="primary" id="open-chat">Parla con Jarvis <span aria-hidden="true">↗</span></button><button class="round" id="speak-brief" title="Leggi il riepilogo ad alta voce" aria-label="Leggi il riepilogo ad alta voce">◉</button></div>
+        <div class="section-title"><h2>Briefing personale</h2><button class="text-btn" id="refresh">Aggiorna ↻</button></div>
+        <div class="stats"><article><span class="statlabel">EMAIL DA LEGGERE</span><strong id="unread">—</strong><small id="mail-note">Collega Gmail per vedere i messaggi.</small></article><article><span class="statlabel">ORARIO LOCALE</span><strong id="clock">--:--</strong><small id="date-note">Europe/Berlin</small></article></div>
+        <div class="section-title"><h2>Da controllare</h2></div><div id="home-mail" class="stack"><p class="muted">Le email importanti compariranno qui quando collegherai Gmail.</p></div>
+      </section>
+      <section class="view" id="chat" aria-label="Chat Jarvis"><div class="section-head"><p class="eyebrow">CONVERSAZIONE PRIVATA</p><h1>Parla con Jarvis<span class="accent">.</span></h1><p class="subtitle">Scrivi oppure usa il microfono.</p></div><div class="neural-chat"><canvas class="neural-canvas" aria-hidden="true"></canvas><span id="neural-status" role="status">In attesa del tuo messaggio</span></div><div id="messages" class="messages" role="log" aria-live="polite"><div class="bubble assistant">Sono Jarvis. Posso aiutarti a organizzare le idee, rispondere alle domande e preparare messaggi. Per inviare email serve sempre la tua conferma.</div></div><form id="chat-form" class="composer"><button type="button" id="mic" title="Dettatura" aria-label="Inizia dettatura">🎙</button><input id="chat-input" maxlength="4000" placeholder="Chiedimi qualcosa..." autocomplete="off" aria-label="Messaggio"><button type="submit" id="send" aria-label="Invia messaggio">➤</button></form><div class="chat-tools"><label><input type="checkbox" id="voice-out"> Leggi risposte ad alta voce</label><button class="text-btn" id="clear-chat">Cancella chat</button></div></section>
+      <section class="view" id="voice" aria-label="Conversazione solo vocale">
+        <div class="section-head voice-heading">
+          <p class="eyebrow">J.A.R.V.I.S. / VOICE INTERFACE</p>
+          <h1>Parla con <span class="accent">Jarvis.</span></h1>
+          <p class="subtitle">Una conversazione a voce, senza digitare messaggi.</p>
+        </div>
+        <div class="panel" id="live-controls">
+          <div class="inline wrap">
+            <div><h2>Conversazione continua</h2><p class="muted">Entra, parla liberamente e lascia che Jarvis ti risponda. Non serve premere il microfono a ogni frase.</p></div>
+            <button type="button" class="secondary" id="live-exit">Esci dalla voce</button>
+          </div>
+          <p id="live-status" role="status" aria-live="polite" class="status">Si attiva automaticamente entrando nella sezione Voce.</p>
+          <p class="muted small">Il primo accesso potrebbe richiedere il permesso microfono di Safari. La sessione usa la connessione Live e può consumare credito Gemini. Il microfono si spegne quando esci o mandi l'app in background.</p>
+        </div>
+        <div class="voice-console" data-voice-phase="idle">
+          <div class="voice-orbit" aria-hidden="true"><canvas class="neural-canvas"></canvas><span class="voice-orbit-ring"></span></div>
+          <div class="voice-status" id="voice-state" role="status" aria-live="polite">Pronto ad ascoltarti</div>
+          <p id="voice-hint" class="voice-hint">Tocca il microfono e parla a Jarvis.</p>
+          <button type="button" id="voice-mic" class="voice-mic" aria-label="Tocca per parlare"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8.5 21h7"/></svg></button>
+          <div id="voice-action" class="voice-action">Tocca per parlare</div>
+          <div class="voice-actions">
+            <button type="button" class="secondary" id="voice-stop" disabled>Ferma tutto</button>
+            <button type="button" class="secondary" id="voice-repeat" disabled>Riascolta risposta</button>
+          </div>
+        </div>
+        <div class="voice-captions" aria-live="polite">
+          <p class="eyebrow">ULTIMA DOMANDA</p>
+          <p id="voice-transcript" class="voice-transcript">Qui vedrai le parole riconosciute.</p>
+          <p class="eyebrow">RISPOSTA DI JARVIS</p>
+          <p id="voice-answer" class="voice-answer">Le risposte saranno lette ad alta voce quando disponibili.</p>
+        </div>
+        <div class="section-title"><h2>Conversazione vocale</h2></div>
+        <div id="voice-log" class="voice-log" aria-label="Storico conversazione vocale"></div>
+        <p class="voice-privacy">Il microfono si attiva solo quando lo premi. Se Safari non offre il riconoscimento vocale, una breve registrazione viene inviata al provider AI configurato (Gemini oppure OpenAI) esclusivamente per trascriverla, senza conservarne il file su Jarvis. La disponibilità dipende da Safari, dai permessi e dai provider AI. Nessun ascolto in background.</p>
+      </section>
+      <section class="view" id="mail" aria-label="Gmail"><div class="section-head"><p class="eyebrow">POSTA E COMUNICAZIONI</p><h1>La tua posta<span class="accent">.</span></h1><p class="subtitle">Visualizza e prepara email. Nessun invio automatico.</p></div><div class="panel"><div class="inline"><div><h2>Gmail</h2><p id="gmail-state" class="muted">Non collegato</p></div><button class="secondary" id="gmail-connect">Collega</button></div><p class="notice">L'accesso a Gmail richiede la configurazione OAuth sul server e il tuo consenso Google.</p></div><div class="section-title"><h2>Non lette</h2><button class="text-btn" id="load-mail">Aggiorna ↻</button></div><div id="mail-list" class="stack"><p class="muted">Non ci sono ancora dati.</p></div><div class="section-title"><h2>Prepara un'email</h2></div><form id="draft-form" class="panel formstack"><label>Destinatario<input id="mail-to" type="email" required placeholder="nome@esempio.com"></label><label>Oggetto<input id="mail-subject" maxlength="200" placeholder="Oggetto"></label><label>Messaggio<textarea id="mail-body" rows="5" required placeholder="Scrivi il messaggio..."></textarea></label><button class="primary" type="submit">Prepara e controlla</button><p class="muted small">Dopo la preparazione vedrai un'anteprima e dovrai confermare di nuovo prima dell'invio.</p></form></section>
+      <section class="view" id="growth" aria-label="Growth Lab imprenditoriale">
+        <div class="section-head"><p class="eyebrow">J.A.R.V.I.S. / GROWTH ENGINE</p><h1>Costruisci il tuo <span class="accent">futuro.</span></h1><p class="subtitle">Non soltanto idee. Azioni misurabili, clienti reali, opportunità da verificare.</p></div>
+        <div class="growth-hero"><div class="growth-orbit" aria-hidden="true"><span class="growth-core">J</span><i></i><i></i></div><div class="growth-hero-copy"><span>MISSION CONTROL / LIVE</span><strong id="growth-day">Il tuo piano di oggi</strong><small>Un passo ogni giorno verso qualcosa di tuo.</small></div></div>
+        <div class="growth-stats"><article><strong id="growth-finished">0/3</strong><small>MISSIONI OGGI</small></article><article><strong id="growth-streak">0</strong><small>GIORNI CONSECUTIVI</small></article><article><strong id="growth-all">0</strong><small>AZIONI COMPLETATE</small></article></div>
+        <div class="growth-progress"><div id="growth-progress-fill"></div></div>
+        <div class="section-title"><h2>Le tue tre missioni</h2><button id="growth-reload" class="text-btn">Aggiorna ↻</button></div><p class="muted">Impresa, carriera e visibilità. Le missioni cambiano quotidianamente e i risultati restano salvati.</p><div id="growth-missions" class="stack"><p class="muted">Accedi per vedere le missioni.</p></div>
+        <div class="section-title"><h2>Cervello imprenditoriale</h2><span class="growth-tag">STRATEGIST</span></div>
+        <div class="panel formstack"><label>Su cosa vuoi costruire un'attività?<textarea id="growth-question" rows="3" maxlength="1000" placeholder="Voglio avviare un servizio video per locali in Olanda senza capitale..."></textarea></label><button class="primary" id="growth-ask" type="button">Analizza il mio business ↗</button><div id="growth-answer" class="growth-answer" role="status"></div></div>
+        <div class="section-title"><h2>Incubatore di idee</h2><span class="growth-tag">0 → 1</span></div>
+        <div class="panel formstack"><label>Settore da esplorare (facoltativo)<input id="growth-topic" maxlength="300" placeholder="UGC, video, eventi, moda..."></label><button class="secondary" type="button" id="growth-generate">Genera una nuova idea da testare</button><p class="muted small">Le idee sono ipotesi, non opportunità o guadagni garantiti. Ogni idea include clienti, primo test e rischi.</p></div><div id="growth-ideas" class="stack"></div>
+        <div class="section-title"><h2>Il tuo profilo imprenditoriale</h2><span class="growth-tag">PERSONAL AI</span></div>
+        <form id="growth-profile-form" class="panel formstack"><label>Direzione principale<input id="growth-focus" maxlength="180" required></label><label>Mercato / città<input id="growth-market" maxlength="100" required></label><div class="growth-row"><label>Minuti al giorno<input id="growth-minutes" type="number" min="10" max="480" required></label><label>Budget iniziale €<input id="growth-budget" type="number" min="0" max="100000" required></label></div><label>Traguardo entro 90 giorni<textarea id="growth-goal" maxlength="250" rows="2" required></textarea></label><button class="secondary" type="submit">Salva strategia personale</button></form>
+        <div class="section-title"><h2>Radar opportunità</h2><span class="growth-tag">RICERCA ESTERNA</span></div><p class="muted">Link a ricerche aggiornabili. Jarvis non considera verificata un'offerta finché non controlli la fonte, il compenso e i requisiti.</p><div id="growth-radar" class="stack"></div>
+        <p class="foot">GROWTH LAB • Idee → Esperimenti → Clienti → Risultati reali</p>
+      </section>
+      <section class="view" id="settings" aria-label="Impostazioni"><div class="section-head"><p class="eyebrow">CONTROLLO E PRIVACY</p><h1>Impostazioni<span class="accent">.</span></h1></div><div class="panel formstack"><h2>Accesso personale</h2><p class="muted">Inserisci il token segreto configurato su Railway. Si conserva nel server come sessione temporanea protetta, senza esporre il token principale a JavaScript.</p><label>Token di accesso<input id="access" type="password" placeholder="JARVIS_ACCESS_TOKEN" autocomplete="off"></label><div class="inline"><button class="primary" id="save-access" type="button">Accedi</button><button class="secondary" id="logout" type="button">Esci</button><button class="text-btn" id="logout-all" type="button">Disconnetti tutti</button></div><p id="auth-state" class="status" role="status"></p></div><div class="panel formstack" id="recovery-dashboard">
+  <div class="inline wrap"><h2>Autodiagnosi e recupero</h2><button class="secondary" type="button" id="recovery-refresh">Controlla adesso</button></div>
+  <p class="muted">Jarvis controlla periodicamente l’archivio e gestisce gli errori delle AI: ritenta soltanto errori temporanei, passa a un provider disponibile e riprova i provider sospesi dopo un intervallo sicuro.</p>
+  <p id="recovery-state" class="status" role="status">Apri la diagnostica per vedere lo stato.</p>
+  <div id="recovery-providers" class="stack" aria-live="polite"></div>
+  <div class="section-title"><h2>Eventi di ripristino</h2></div>
+  <div id="recovery-events" class="stack"><p class="muted">Nessun evento caricato.</p></div>
+  <p class="muted small">Non modifica autonomamente codice, password, chiavi o dati. Se manca credito API o c’è un guasto grave all’archivio, segnala che serve il tuo intervento. Per la privacy, i log di recupero non contengono contenuti delle chat o credenziali.</p>
+</div><div class="panel formstack"><h2>Memorie personali</h2><p class="muted">Salva soltanto le informazioni che decidi tu. Puoi eliminarle quando vuoi.</p><label>Nome della memoria<input id="memory-key" placeholder="Es. lavoro" maxlength="60"></label><label>Informazione<textarea id="memory-value" rows="3" maxlength="2000" placeholder="Es. Preferisco le risposte in italiano"></textarea></label><button class="secondary" id="save-memory" type="button">Salva memoria</button><div id="memory-list" class="stack"></div></div><div class="panel"><h2>Piano di recupero esterno</h2><p class="muted">Se hai perso il controllo dei tuoi account, del telefono o della tua identità, consulta la guida prima di cancellare qualsiasi prova. È accessibile anche quando Jarvis è bloccato.</p><a class="secondary link-btn" href="/recovery">Apri piano per furto d'identità e attacco ↗</a></div><div class="panel formstack" id="emergency-console" hidden>
+<h2>Protocollo di emergenza • SOLO PROPRIETARIO</h2>
+<p class="muted">Blocco istantaneo dell'API e revoca delle sessioni, oppure cancellazione irreversibile dei dati personali locali. Non revoca le API key custodite da Railway, né garantisce la cancellazione dei backup.</p>
+<p id="emergency-state" role="status" class="status">Stato da verificare</p>
+<label>Token proprietario (necessario per la prima attivazione e lo sblocco)<input id="emergency-owner" type="password" autocomplete="off" placeholder="JARVIS_ACCESS_TOKEN"></label>
+<label>Frase di recupero separata, almeno 20 caratteri<input id="emergency-secret" type="password" autocomplete="off" placeholder="Frase lunga e diversa dal token"></label>
+<label id="emergency-confirm-label">Ripeti frase per configurazione<input id="emergency-secret-repeat" type="password" autocomplete="off"></label>
+<div class="inline wrap">
+<button class="secondary" id="emergency-enroll" type="button">Attiva protezione</button>
+<button class="secondary" id="emergency-unlock" type="button">Sblocca Jarvis</button>
+</div>
+<label>Conferma operazione digitando BLOCCA JARVIS oppure CANCELLA TUTTO<input id="emergency-typed" type="text" autocomplete="off" spellcheck="false"></label>
+<div class="inline wrap">
+<button class="secondary" id="emergency-lock" type="button">⏸ Blocco di emergenza</button>
+<button class="secondary emergency-danger" id="emergency-wipe" type="button">Cancella dati di Jarvis</button>
+</div>
+<p class="muted small">La frase di recupero non è salvata in chiaro e non può essere recuperata: conservala in un password manager. La cancellazione richiede una seconda conferma. Per revocare credenziali provider, usa anche Railway, Google e OpenAI.</p>
+</div><div class="panel"><h2>Messaggistica</h2><p class="muted">WhatsApp e Instagram non sono collegati direttamente. Puoi aprire le app, ma Jarvis non può leggere o inviare messaggi personali tramite integrazioni non disponibili.</p><div class="inline wrap"><a class="secondary link-btn" href="https://wa.me/" target="_blank" rel="noopener noreferrer">Apri WhatsApp ↗</a><a class="secondary link-btn" href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer">Apri Instagram ↗</a></div></div><p class="foot">JARVIS v2 • Dati privati • Nessuna azione esterna senza autorizzazione</p></section>
+    </main>
+    <nav class="bottom" aria-label="Navigazione"><button data-page="home" class="active" aria-current="page"><span>⌂</span>Home</button><button data-page="chat"><span>◉</span>Chat</button><button data-page="voice"><span>🎙</span>Voce</button><button data-page="mail"><span>✉</span>Posta</button><button data-page="growth"><span>◎</span>Crescita</button><button data-page="settings"><span>⚙</span>Impostazioni</button></nav>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <script src="/static/app.js" defer></script>
+  <script src="/static/voice.js" defer></script>
+  <script src="/static/live-client.js" defer></script>
+  <script src="/static/neural.js" defer></script>
+</body>
+</html>

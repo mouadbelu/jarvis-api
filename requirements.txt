@@ -1,7 +1,5 @@
-fastapi
-uvicorn
-httpx
-openai
-anthropic
-google-generativeai
-python-dotenv
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1
+httpx>=0.27,<1
+cryptography>=42,<50
+websockets>=14,<17

@@ -1,0 +1,27 @@
+name: Jarvis quality checks
+on:
+  push:
+    branches: [main, jarvis-iphone-v2]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run tests
+        run: pytest -q
+      - name: Validate Python compilation
+        run: python -m compileall -q .
+      - name: Validate browser JavaScript syntax
+        run: |
+          node --check static/app.js
+          node --check static/voice.js
+          node --check static/neural.js
+          node --check static/sw.js
