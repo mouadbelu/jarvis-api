@@ -22,6 +22,7 @@ import growth
 import auth_firewall
 import emergency
 import assistant_briefing
+import self_healing
 
 app = FastAPI(title='Jarvis Personal Assistant', docs_url=None, redoc_url=None)
 store = Store()
@@ -38,6 +39,7 @@ async def verify_provider_configuration():
         except Exception as exc:
             print('Jarvis AI startup diagnostic: ERROR ' + type(exc).__name__, flush=True)
     asyncio.create_task(run_probe())
+    app.state.recovery_monitor = asyncio.create_task(self_healing.monitor_database(store))
 
 @app.middleware('http')
 async def browser_security(request: Request, call_next):
@@ -257,6 +259,13 @@ def config():
             'gmail_ready':gmail_api.configured()}
 
 
+@app.get('/api/diagnostics', dependencies=[Depends(secure)])
+def diagnostics():
+    """Private, read-only service health without keys, personal data or logs."""
+    return self_healing.snapshot(store, check_db=True)
+
+
+
 @app.get('/api/history', dependencies=[Depends(secure)])
 def history(conversation: str='main'):
     if not re.fullmatch(r'[a-zA-Z0-9_-]{1,40}', conversation):
@@ -290,7 +299,7 @@ async def reply(text, conversation):
     prompt = ('Contesto della conversazione precedente:\n'+transcript+'\n\n' if transcript else '') + 'Messaggio attuale dell’utente:\n' + text
     answer = await omnipotent_ask(prompt, sys=context)
     if not answer:
-        raise HTTPException(502, 'Nessun provider AI disponibile. Verifica le chiavi API del server.')
+        raise HTTPException(502, 'Il recupero automatico non è riuscito: i provider AI non rispondono. Apri Impostazioni → Diagnostica per verificare i motivi.')
     store.add_message(conversation,'user',text)
     store.add_message(conversation,'assistant',answer)
     return {'reply':answer}
