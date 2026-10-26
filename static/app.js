@@ -112,11 +112,39 @@ async function loadHistory() {
   if (!h.messages.length) addBubble('assistant','Ciao! Sono Jarvis. Da cosa iniziamo?');
   else h.messages.forEach(m => addBubble(m.role,m.content));
 }
-function speak(text) {
-  if (!window.speechSynthesis) { notify('Sintesi vocale non disponibile.'); return; }
-  window.speechSynthesis.cancel();
-  const utterance=new SpeechSynthesisUtterance(text); utterance.lang='it-IT'; utterance.rate=1.05;
+let activeNarration=null, narrationUrl=null;
+function stopNarration() {
+  if(activeNarration){try{activeNarration.pause();activeNarration.removeAttribute('src');}catch(_){}}
+  activeNarration=null;
+  if(narrationUrl){URL.revokeObjectURL(narrationUrl);narrationUrl=null;}
+  if(window.speechSynthesis)window.speechSynthesis.cancel();
+}
+function fallbackSpeak(text) {
+  if(!window.speechSynthesis){notify('Sintesi vocale non disponibile.');return;}
+  const utterance=new SpeechSynthesisUtterance(text);
+  utterance.lang='it-IT';utterance.rate=1.02;
   window.speechSynthesis.speak(utterance);
+}
+async function speak(text) {
+  stopNarration();
+  if(!text) return;
+  try {
+    const response=await fetch('/api/voice/speak',{
+      method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json','X-Jarvis-Request':'1','Accept':'audio/wav'},
+      body:JSON.stringify({text:String(text).slice(0,1100),voice:'Orus'})
+    });
+    if(!response.ok)throw new Error('Voce AI non disponibile');
+    const blob=await response.blob();
+    narrationUrl=URL.createObjectURL(blob);
+    const audio=new Audio(narrationUrl);
+    activeNarration=audio;
+    audio.onended=stopNarration;
+    await audio.play();
+  }catch(_){
+    stopNarration();
+    fallbackSpeak(text);
+  }
 }
 $('chat-form').addEventListener('submit',async e => {
   e.preventDefault();
@@ -169,6 +197,7 @@ $('save-access').addEventListener('click',async () => {
 });
 function clearPrivateScreen() {
   document.dispatchEvent(new Event('jarvis:logout'));
+  stopNarration();
   authenticated=false;
   $('connection').classList.remove('ok');
   status('Sessione chiusa su questo dispositivo.');
